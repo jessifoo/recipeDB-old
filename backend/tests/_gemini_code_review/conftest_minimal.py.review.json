@@ -1,0 +1,16 @@
+{
+  "filename": "conftest_minimal.py",
+  "category": "Bug Reports",
+  "issues": [
+    {
+      "type": "Missing Error Handling",
+      "severity": "Medium",
+      "description": "The `get_recipe` method does not handle the case where a recipe with the given `recipe_id` does not exist. It returns `None` implicitly in this case, which might lead to unexpected behavior or `TypeError` exceptions later in the code if the caller assumes a dictionary is always returned."
+    },
+    {
+      "type": "Potential Performance Issue",
+      "severity": "Low",
+      "description": "The `list_recipes` method creates a new list by copying all recipe values. For a very large number of recipes, this could lead to increased memory usage and potentially slow down the operation. If the caller only needs to iterate through the recipes and does not modify the list, returning an iterator (e.g., using `self.recipes.values()` directly) would be more efficient."
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  // Python settings
+  "python.analysis.typeCheckingMode": "strict",
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.analysis.extraPaths": ["backend", "backend/app"],
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+  "python.autoComplete.extraPaths": [
+    "${workspaceFolder}/backend/.venv/lib/python3.11/site-packages"
+  ],
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.indexing": true,
+  "python.testing.pytestArgs": [
+    "tests",
+    "-v",
+    "--tb=short",
+    "--asyncio-mode=auto"
+  ],
+  "python.testing.cwd": "${workspaceFolder}/backend/tests",
+  "python.envFile": "${workspaceFolder}/backend/.env",
+  "python.createEnvironment.contentButton": "hide",
+
+  // Environment settings
+  "terminal.integrated.cwd": "${workspaceFolder}/backend",
+  "terminal.integrated.env.osx": {
+    "PYTHONPATH": "${workspaceFolder}/backend",
+    "APP_ENV": "development",
+    "BACKEND_CORS_ORIGINS": "http://localhost:3000"
+  },
+
+  // Ruff settings
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  },
+
+  // Poetry settings
+  "python.poetryPath": "poetry",
+  "python.venvPath": "${workspaceFolder}/backend/.venv",
+
+  // Mypy settings
+  "mypy.enabled": true,
+  "mypy.dmypyExecutable": "${workspaceFolder}/backend/.venv/bin/dmypy",
+  "mypy.configFile": "backend/pyproject.toml",
+  "mypy.runUsingActiveInterpreter": true,
+  "mypy.targets": ["backend/app"],
+
+  // Python Analysis settings
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportPrivateUsage": "none",
+    "reportUnknownMemberType": "none",
+    "reportMissingTypeStubs": "none"
+  },
+  "python.analysis.packageIndexDepths": [
+    {
+      "name": "app",
+      "depth": 5
+    },
+    {
+      "name": "tests",
+      "depth": 2
+    },
+    {
+      "name": "sqlalchemy",
+      "depth": 2
+    },
+    {
+      "name": "pydantic",
+      "depth": 2
+    }
+  ],
+
+  // Project-specific TypeScript/React settings
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  },
+
+  // Project-specific search settings
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/venv": true,
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "app/**": true
+  },
+
+  // Project-specific Python analysis settings
+  "python.analysis.fixAll": ["source.convertImportFormat"],
+  "python.analysis.stubPath": "backend/app/types",
+  "python.analysis.exclude": [
+    "**/.git",
+    "**/.venv",
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/.mypy_cache",
+    "**/build",
+    "**/dist",
+    "app/**",
+    "**/backend/tests/**"
+  ],
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.importFormat": "absolute",
+  "python.analysis.inlayHints.functionReturnTypes": true,
+  "python.analysis.inlayHints.variableTypes": true,
+  "python.analysis.useLibraryCodeForTypes": true,
+
+  // Disable Pixi warnings
+  "pixi.enabled": false
+}

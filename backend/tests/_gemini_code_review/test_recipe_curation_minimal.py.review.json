@@ -1,0 +1,26 @@
+{
+  "filename": "test_recipe_curation_minimal.py",
+  "category": "Bug Reports",
+  "issues": [
+    {
+      "type": "Logical Error",
+      "severity": "High",
+      "description": "In `test_ingredient_validation`, the assertion `assert not suspicious_recipe.is_dairy_free` will fail because the recipe is incorrectly marked as dairy-free. This indicates a problem in the logic that determines whether a recipe is dairy-free based on its ingredients."
+    },
+    {
+      "type": "Logical Error",
+      "severity": "Medium",
+      "description": "In `test_hidden_allergens`, the function `has_hidden_allergens` includes 'natural flavoring' and 'spices' as hidden allergen terms. While these can sometimes contain allergens, they are not always allergens. This could lead to false positives, flagging recipes as potentially containing allergens when they do not."
+    },
+    {
+      "type": "Logical Error",
+      "severity": "High",
+      "description": "In `test_recipe_deduplication`, the deduplication logic only considers the title of the recipe. Two recipes with different ingredients but the same title will be considered duplicates, which is likely not the intended behavior. This could lead to loss of valid recipe data."
+    },
+    {
+      "type": "Performance Issue",
+      "severity": "Low",
+      "description": "In `test_hidden_allergens`, the function `has_hidden_allergens` and `has_dairy` in `test_ingredient_validation` use nested loops, which can be inefficient for large lists of ingredients or allergen terms. This could lead to slowdowns when processing a large number of recipes."
+    }
+  ]
+}

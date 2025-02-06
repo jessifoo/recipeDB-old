@@ -1,0 +1,271 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Recipe Database API"
+readme = "README.md"
+authors = [
+    {name = "Jessica Johnson", email = "jessica.johnson@example.com"}
+]
+requires-python = ">=3.11,<3.13"
+dynamic = ["dependencies", "optional-dependencies"]
+
+[tool.poetry]
+packages = [{include = "app"}]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+fastapi = "^0.109.2"
+sqlalchemy = {extras = ["mypy"], version = "^2.0.37"}
+asyncpg = "^0.29.0"
+alembic = "^1.13.1"
+python-dotenv = "^1.0.0"
+structlog = "^24.1.0"
+tenacity = "^8.2.3"
+cachetools = "^5.3.2"
+fuzzywuzzy = "^0.18.0"
+python-Levenshtein = "^0.23.0"
+spoonacular = "^3.0"
+redis = "^4.6.0"
+uvicorn = "^0.27.1"
+email-validator = "^2.1.0"
+httpx = "^0.26.0"
+python-multipart = "^0.0.6"
+pyjwt = "^2.8.0"
+psycopg2-binary = "^2.9.9"
+aiohttp = "^3.9.1"
+fastapi-cache2 = {extras = ["redis"], version = "^0.2.2"}
+pydantic = {extras = ["email"], version = "^2.6.1"}
+pydantic-settings = "^2.1.0"
+python-jose = {extras = ["cryptography"], version = "^3.3.0"}
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+cython = "^3.0.11"
+databases = "^0.9.0"
+mypy = "^1.14.1"
+werkzeug = "^3.0.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.4"
+pytest-asyncio = "^0.23.3"
+pytest-cov = "^4.1.0"
+coverage = {extras = ["toml"], version = "^7.4.1"}
+mypy = "^1.8.0"
+ruff = "^0.3.3"
+types-redis = "^4.6.0.20240106"
+types-passlib = "^1.7.7.20240106"
+types-python-jose = "^3.3.4.20240106"
+types-aiofiles = "^23.2.0.20240106"
+types-pytz = "^2024.1.0.20240203"
+types-cachetools = "^5.5.0.20240820"
+
+[tool.black]
+line-length = 120
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+# A regex preceded with ^/ will apply only to files and directories
+# in the root of the project.
+^/tests/fixtures/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+known_first_party = ["app"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
+[tool.pylint.messages_control]
+# Based on Google Python Style Guide
+disable = [
+    "C0330",  # wrong-hanging-indentation (handled by black)
+    "C0326",  # bad-whitespace (handled by black)
+]
+
+[tool.pylint.format]
+max-module-lines = 1000
+indent-after-paren = 4
+
+[tool.pylint.basic]
+good-names = [
+    "i",
+    "j",
+    "k",
+    "ex",
+    "Run",
+    "_",
+    "id",
+    "db",
+    "fp",
+    "T",
+]
+
+[tool.pylint.design]
+max-args = 8
+max-attributes = 8
+min-public-methods = 1
+max-public-methods = 20
+max-locals = 15
+max-statements = 50
+
+[tool.pylint.similarities]
+min-similarity-lines = 4
+ignore-comments = true
+ignore-docstrings = true
+ignore-imports = true
+ignore-init-method = true
+ignore-overridden-methods = true
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_optional = true
+strict_equality = true
+implicit_reexport = true
+ignore_missing_imports = true
+plugins = [
+    "pydantic.mypy"
+]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+python_classes = ["Test*"]
+addopts = "-v --cov=app --cov-report=term-missing --cov-report=html --cov-report=xml --cov-branch"
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+omit = [
+    "*/migrations/*",
+    "*/alembic/*",
+    "*/tests/*",
+    "*/__init__.py",
+    "*/scripts/*",
+    "*/types/*",
+]
+dynamic_context = "test_function"
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+    "raise ImportError",
+    "@abstractmethod",
+    "@abc.abstractmethod",
+]
+ignore_errors = true
+fail_under = 80
+precision = 2
+show_missing = true
+
+[tool.coverage.html]
+directory = "coverage_html"
+show_contexts = true
+title = "RecipeDB Coverage Report"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["backend"]
+extend-exclude = [".venv", "migrations", "alembic"]
+fix = true
+unsafe-fixes = true
+show-fixes = true
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "F",     # pyflakes
+    "I",     # isort
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "UP",    # pyupgrade
+    "D",     # pydocstyle
+    "N",     # pep8-naming
+    "COM",   # flake8-commas
+    "PT",    # flake8-pytest-style
+    "RET",   # flake8-return
+    "SIM",   # flake8-simplify
+    "ARG",   # flake8-unused-arguments
+    "ERA",   # eradicate
+    "PL",    # pylint
+    "RUF",   # Ruff-specific rules
+    "TCH",   # flake8-type-checking
+    "TID",   # flake8-tidy-imports
+    "A",     # flake8-builtins
+    "S",     # flake8-bandit
+    "DTZ",   # flake8-datetimez
+    "T20",   # flake8-print
+]
+ignore = [
+    "D203",  # 1 blank line required before class docstring
+    "D212",  # Multi-line docstring summary should start at the first line
+    "S101",  # Use of assert detected (pytest needs this)
+]
+
+[tool.ruff.format]
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-single-line = false
+known-first-party = ["app"]
+required-imports = ["from __future__ import annotations"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D", "S", "PLR2004"]
+"migrations/*" = ["D", "E", "F", "I", "N"]
+"alembic/*" = ["D", "E", "F", "I", "N"]
+"__init__.py" = ["D104"]
+"app/models/*" = ["N805"]  # Allow self typed differently in pydantic models
+"app/schemas/*" = ["N805"]  # Allow self typed differently in pydantic models
+
+[tool.ruff.lint.flake8-pytest-style]
+fixture-parentheses = false
+mark-parentheses = false
+parametrize-names-type = "csv"
+
+[tool.ruff.lint.pylint]
+max-args = 8
+max-statements = 50
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.flake8-type-checking]
+strict = true

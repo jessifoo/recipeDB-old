@@ -1,0 +1,91 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "organizeImports": {
+    "enabled": true
+  },
+  "javascript": {
+    "globals": ["jest", "describe", "it", "expect", "beforeEach", "afterEach", "beforeAll", "afterAll"],
+    "formatter": {
+      "quoteStyle": "single",
+      "trailingCommas": "es5",
+      "semicolons": "always"
+    }
+  },
+  "files": {
+    "ignore": [
+      ".next/**/*",
+      "node_modules/**/*",
+      "build/**/*",
+      "dist/**/*",
+      "coverage/**/*",
+      "**/generated/**/*",
+      "./coverage/**",
+      "./dist/**",
+      "./node_modules/**",
+      "**/*.d.ts"
+    ]
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "correctness": {
+        "noUnusedVariables": "error",
+        "noUndeclaredVariables": {
+          "level": "info"
+        },
+        "useExhaustiveDependencies": "error",
+        "noUnusedImports": "error",
+        "noConstantCondition": "error"
+      },
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noDoubleEquals": "error",
+        "noConsoleLog": "warn",
+        "noEmptyInterface": "error",
+        "noRedeclare": "error",
+        "noConfusingVoidType": "error",
+        "noPrototypeBuiltins": "error",
+        "noMisleadingInstantiator": "error"
+      },
+      "style": {
+        "useBlockStatements": "error",
+        "useShorthandArrayType": "error",
+        "noNonNullAssertion": "error",
+        "useTemplate": "error",
+        "useConst": "error",
+        "noUselessElse": "error",
+        "useEnumInitializers": "error",
+        "useImportType": "error",
+        "useExportType": "error"
+      },
+      "complexity": {
+        "noForEach": {
+          "level": "off"
+        },
+        "noBannedTypes": "error",
+        "noStaticOnlyClass": "error",
+        "noUselessConstructor": "error",
+        "noUselessFragments": "error",
+        "noThisInStatic": "error",
+        "noUselessTypeConstraint": "error"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "error",
+        "noDangerouslySetInnerHtmlWithChildren": "error"
+      },
+      "performance": {
+        "noDelete": "error",
+        "noAccumulatingSpread": {
+          "level": "info"
+        }
+      }
+    }
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  }
+}
