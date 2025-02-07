@@ -49,18 +49,15 @@ class MockRecipeProvider(RecipeProvider):
         # Apply pagination
         paginated_results = results[offset : offset + limit] if limit else results[offset:]
 
-        return RecipeList(
-            total=len(results),
-            results=paginated_results,
-            source=self.source_name,
-        )
+        return RecipeList(total=len(results), results=paginated_results, source=self.source_name)
 
     async def get_recipe_by_id(self, recipe_id: str) -> RecipeSearchResult:
         """Get mock recipe by ID."""
         for recipe in self._mock_recipes:
             if recipe.id == recipe_id:
                 return recipe
-        raise ValueError(f"Recipe not found: {recipe_id}")
+        msg = f"Recipe not found: {recipe_id}"
+        raise ValueError(msg)
 
     def _generate_mock_recipes(self) -> list[RecipeSearchResult]:
         """Generate a list of mock recipes."""

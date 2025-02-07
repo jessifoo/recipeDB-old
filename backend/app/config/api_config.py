@@ -20,22 +20,10 @@ class APIEndpoint(BaseModel):
 
 # Define API endpoints
 ENDPOINTS: dict[str, APIEndpoint] = {
-    "spoonacular": APIEndpoint(
-        base_url="https://api.spoonacular.com",
-        required_keys={"SPOONACULAR_API_KEY"},
-    ),
-    "edamam": APIEndpoint(
-        base_url="https://api.edamam.com",
-        required_keys={"EDAMAM_APP_ID", "EDAMAM_APP_KEY"},
-    ),
-    "api_ninjas": APIEndpoint(
-        base_url="https://api.api-ninjas.com/v1",
-        required_keys={"API_NINJAS_API_KEY"},
-    ),
-    "tasty": APIEndpoint(
-        base_url="https://tasty.p.rapidapi.com",
-        required_keys={"TASTY_API_KEY"},
-    ),
+    "spoonacular": APIEndpoint(base_url="https://api.spoonacular.com", required_keys={"SPOONACULAR_API_KEY"}),
+    "edamam": APIEndpoint(base_url="https://api.edamam.com", required_keys={"EDAMAM_APP_ID", "EDAMAM_APP_KEY"}),
+    "api_ninjas": APIEndpoint(base_url="https://api.api-ninjas.com/v1", required_keys={"API_NINJAS_API_KEY"}),
+    "tasty": APIEndpoint(base_url="https://tasty.p.rapidapi.com", required_keys={"TASTY_API_KEY"}),
 }
 
 
@@ -62,7 +50,7 @@ class APIConfig(BaseModel):
             ConfigurationError: If any required API keys are missing
         """
         missing_keys: list[str] = []
-        for _endpoint_name, endpoint in ENDPOINTS.items():
+        for endpoint in ENDPOINTS.values():
             for key in endpoint.required_keys:
                 env_key: str = key  # assumes the key in required_keys matches the env var
                 if not os.getenv(env_key) and not self.dev_mode:
@@ -70,21 +58,22 @@ class APIConfig(BaseModel):
 
         if missing_keys:
             missing_str: str = ", ".join(missing_keys)
-            raise ConfigurationError(
-                f"Missing required API keys: {missing_str}. Please set these environment variables.",
-            )
+            msg = f"Missing required API keys: {missing_str}. Please set these environment variables."
+            raise ConfigurationError(msg)
 
     def get_endpoint(self, api_name: str) -> APIEndpoint:
         """Get endpoint configuration for an API."""
         if api_name not in ENDPOINTS:
-            raise ConfigurationError(f"Unknown API: {api_name}")
+            msg = f"Unknown API: {api_name}"
+            raise ConfigurationError(msg)
         return ENDPOINTS[api_name]
 
     def get_api_key(self, api_name: str, key_name: str) -> str | None:
         """Get API key from environment."""
         api_key: str | None = os.getenv(key_name)
         if not api_key and not self.dev_mode:
-            raise ConfigurationError(f"Missing API key for {api_name}. Please set {key_name} environment variable.")
+            msg = f"Missing API key for {api_name}. Please set {key_name} environment variable."
+            raise ConfigurationError(msg)
         return api_key
 
     def get_required_keys(self) -> list[str]:
@@ -94,7 +83,7 @@ class APIConfig(BaseModel):
             List of required API key names
         """
         missing_keys: list[str] = []
-        for _endpoint_name, endpoint in ENDPOINTS.items():
+        for endpoint in ENDPOINTS.values():
             for key in endpoint.required_keys:
                 env_key: str = key  # assumes the key in required_keys matches the env var
                 if env_key not in missing_keys:

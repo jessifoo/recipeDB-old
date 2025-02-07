@@ -1,6 +1,8 @@
 # FPIES-Friendly Recipe Platform
 
-A modern recipe platform designed for families managing FPIES and food allergies. Built with Next.js 14 and FastAPi.
+
+A modern recipe platform designed for families managing FPIES and food allergies.
+Built with Next.js 14 and FastAPi.
 
 ## Tech Stack
 

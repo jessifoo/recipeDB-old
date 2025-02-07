@@ -5,18 +5,18 @@ This module provides endpoints for searching and filtering recipes.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import SQLAlchemyError
 
-from app.schemas.recipe import RecipeResponse
+from app.api.deps import get_db
+from app.schemas.recipe import RecipeResponse, RecipeSearchFilter
 from app.services.recipe_search import RecipeSearchService
-from backend.app.api.deps import get_db
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from app.schemas.recipe import RecipeSearchFilters
 
 router = APIRouter(
     prefix="/search",
@@ -25,7 +25,7 @@ router = APIRouter(
         status.HTTP_500_INTERNAL_SERVER_ERROR: {
             "description": "Internal server error",
             "content": {"application/json": {"example": {"detail": "An error occurred during the search"}}},
-        },
+        }
     },
 )
 
@@ -49,16 +49,16 @@ router = APIRouter(
                             "ingredients": ["pasta", "eggs", "pecorino", "guanciale"],
                             "instructions": ["Step 1...", "Step 2..."],
                             "tags": ["italian", "pasta", "quick"],
-                        },
-                    ],
-                },
+                        }
+                    ]
+                }
             },
-        },
+        }
     },
 )
 async def search_recipes(
     query: str = Query(..., description="Search query string"),
-    filters: RecipeSearchFilters | None = None,
+    filters: RecipeSearchFilter | None = None,
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     db: AsyncSession = Depends(get_db),
@@ -80,15 +80,20 @@ async def search_recipes(
     """
     try:
         search_service = RecipeSearchService(db)
+        filter_dict: dict[str, Any] = filters.model_dump() if filters else {}
         recipes = await search_service.search(
-            query=query,
-            filters=filters.dict() if filters else {},
-            offset=(page - 1) * page_size,
-            limit=page_size,
+            query=query, filters=filter_dict, offset=(page - 1) * page_size, limit=page_size
         )
-        return [RecipeResponse.from_orm(recipe) for recipe in recipes]
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Database error during recipe search: {e!s}"
+        ) from e
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to search recipes: {e!s}",
-        )
+            detail="An unexpected error occurred during recipe search",
+        ) from e
+
+    return [RecipeResponse.model_validate(recipe, from_attributes=True) for recipe in recipes]

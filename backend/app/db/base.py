@@ -15,7 +15,8 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 if not settings.SQLALCHEMY_DATABASE_URI:
-    raise ValueError("Database URI is not configured")
+    msg = "Database URI is not configured"
+    raise ValueError(msg)
 
 # Create async engine with optimized settings
 engine = create_async_engine(
@@ -74,10 +75,7 @@ async def get_db_readonly() -> AsyncGenerator[AsyncSession, None]:
         try:
             # Set read-only mode and optimized isolation level
             await session.connection(
-                execution_options={
-                    "isolation_level": "READ COMMITTED",
-                    "postgresql_readonly": True,
-                },
+                execution_options={"isolation_level": "READ COMMITTED", "postgresql_readonly": True}
             )
             yield session
             await session.rollback()  # Always rollback read-only transactions

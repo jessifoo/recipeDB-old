@@ -28,7 +28,8 @@ Base = declarative_base()
 
 # Create engines
 if not settings.SQLALCHEMY_DATABASE_URI:
-    raise ValueError("Database URI is not configured")
+    msg = "Database URI is not configured"
+    raise ValueError(msg)
 
 db_url = make_url(settings.SQLALCHEMY_DATABASE_URI)
 engine: Engine = create_engine(
@@ -47,19 +48,9 @@ async_engine: AsyncEngine = create_async_engine(
 )
 
 # Create session factories
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine,
-    expire_on_commit=False,
-)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, expire_on_commit=False)
 
-AsyncSessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
+AsyncSessionLocal = sessionmaker(autocommit=False, autoflush=False, class_=AsyncSession, expire_on_commit=False)
 
 # Bind the async session after creation
 AsyncSessionLocal.configure(bind=async_engine)
@@ -78,9 +69,9 @@ def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         yield db
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise e
+        raise
     finally:
         db.close()
 
@@ -97,9 +88,9 @@ async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as db:
         try:
             yield db
-        except Exception as e:
+        except Exception:
             await db.rollback()
-            raise e
+            raise
 
 
 async def init_async_db() -> None:

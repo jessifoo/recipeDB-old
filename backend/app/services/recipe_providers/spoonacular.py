@@ -1,32 +1,60 @@
-"""Spoonacular recipe provider."""
+"""Spoonacular recipe provider implementation.
+
+This module provides integration with the Spoonacular Recipe API.
+It handles recipe search, retrieval, and data normalization.
+"""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any, Final, cast
 
 import httpx
+from typing_extensions import override
 
 from app.core.config import settings
+from app.core.constants import ErrorMessages
+from app.core.http_exceptions import ExternalServiceException, ValidationException
 from app.schemas.recipe import RecipeList, RecipeSearchResult
-from app.services.exceptions import ExternalAPIError, RecipeFilterError, RecipeProviderError
+from app.services.recipe_providers.base import RecipeProvider
 
-from .base import RecipeProvider
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class SpoonacularProvider(RecipeProvider):
-    """Spoonacular recipe provider implementation."""
+    """Spoonacular recipe provider implementation.
 
-    BASE_URL = "https://api.spoonacular.com"
+    This class implements the RecipeProvider interface for the Spoonacular API.
+    It provides methods for searching recipes and retrieving recipe details.
+
+    Attributes:
+        BASE_URL: The base URL for the Spoonacular API.
+        source_name: The name identifier for this provider.
+        _SUPPORTED_ALLERGENS: List of allergens directly supported by Spoonacular.
+        _DEFAULT_TIMEOUT: Default timeout for API requests in seconds.
+    """
+
+    BASE_URL: Final[str] = "https://api.spoonacular.com"
+    source_name: Final[str] = "spoonacular"
+
+    _SUPPORTED_ALLERGENS: Final[list[str]] = ["dairy", "egg"]
+    _DEFAULT_TIMEOUT: Final[float] = 30.0
 
     def __init__(self) -> None:
-        """Initialize the Spoonacular provider."""
+        """Initialize the Spoonacular provider.
+
+        Raises:
+            ValueError: If the Spoonacular API key is not configured.
+        """
+        if not settings.SPOONACULAR_API_KEY:
+            raise ValueError(ErrorMessages.INVALID_CREDENTIALS)
+
         super().__init__(api_key=settings.SPOONACULAR_API_KEY)
         self.client = httpx.AsyncClient(
-            base_url=self.BASE_URL,
-            params={"apiKey": self.api_key} if self.api_key else {},
-            timeout=30.0,
+            base_url=self.BASE_URL, params={"apiKey": self.api_key}, timeout=self._DEFAULT_TIMEOUT
         )
 
+    @override
     async def search_recipes(
         self,
         query: str,
@@ -34,18 +62,31 @@ class SpoonacularProvider(RecipeProvider):
         limit: int = 20,
         cuisine: str | None = None,
         diet: str | None = None,
-        exclude: list[str] | None = None,
+        exclude: Sequence[str] | None = None,
         max_time: int | None = None,
     ) -> RecipeList:
-        """Search for recipes using the Spoonacular API."""
-        # Build intolerances string from default allergens
-        intolerances = ["dairy", "egg"]  # Spoonacular supports these directly
+        """Search for recipes using the Spoonacular API.
 
+        Args:
+            query: Search query string.
+            offset: Number of results to skip.
+            limit: Maximum number of results to return.
+            cuisine: Filter by cuisine type.
+            diet: Filter by diet type.
+            exclude: List of ingredients to exclude.
+            max_time: Maximum total cooking time in minutes.
+
+        Returns:
+            RecipeList containing search results.
+
+        Raises:
+            ExternalServiceException: If the API request fails.
+        """
         params: dict[str, Any] = {
             "query": query,
             "offset": offset,
             "number": limit,
-            "intolerances": ",".join(intolerances),
+            "intolerances": ",".join(self._SUPPORTED_ALLERGENS),
             "addRecipeInformation": True,  # Get full recipe details
             "fillIngredients": True,  # Get detailed ingredient info
             "instructionsRequired": True,  # Only recipes with instructions
@@ -63,7 +104,7 @@ class SpoonacularProvider(RecipeProvider):
         try:
             response = await self.client.get("/recipes/complexSearch", params=params)
             response.raise_for_status()
-            data = response.json()
+            data = cast(dict[str, Any], response.json())
             recipes = data.get("results", [])
 
             # Convert recipes to standard format
@@ -73,51 +114,68 @@ class SpoonacularProvider(RecipeProvider):
             results = self._apply_allergen_filtering(results)
 
             return RecipeList(
-                total=data.get("totalResults", len(results)),
-                results=results[:limit],
-                source=self.source_name,
+                total=data.get("totalResults", len(results)), results=results[:limit], source=self.source_name
             )
 
         except httpx.HTTPStatusError as e:
-            raise ExternalAPIError(
-                f"Spoonacular API error: {e!s}",
+            raise ExternalServiceException(
+                ErrorMessages.EXTERNAL_SERVICE_ERROR.format(service="Spoonacular", details=str(e)),
                 status_code=e.response.status_code,
             ) from e
         except Exception as e:
-            raise RecipeProviderError(f"Failed to search recipes: {e!s}") from e
+            raise ExternalServiceException(ErrorMessages.RECIPE_SEARCH_FAILED.format(details=str(e))) from e
 
+    @override
     async def get_recipe_by_id(self, recipe_id: str) -> RecipeSearchResult:
-        """Get recipe details by ID."""
+        """Get recipe details by ID.
+
+        Args:
+            recipe_id: The Spoonacular recipe ID.
+
+        Returns:
+            RecipeSearchResult containing the recipe details.
+
+        Raises:
+            ExternalServiceException: If the API request fails.
+            ValidationException: If the recipe contains allergens.
+        """
         try:
             response = await self.client.get(
                 f"/recipes/{recipe_id}/information",
                 params={
-                    "includeNutrition": False,  # Skip nutrition data to reduce API points
+                    "includeNutrition": False  # Skip nutrition data to reduce API points
                 },
             )
             response.raise_for_status()
-            recipe_data = response.json()
+            recipe_data = cast(dict[str, Any], response.json())
 
             recipe = self._normalize_recipe(recipe_data)
 
             # Check for allergens
             if not self._filter_allergens(recipe):
-                raise RecipeFilterError("Recipe contains allergens")
+                raise ValidationException(ErrorMessages.RECIPE_CONTAINS_ALLERGENS)
 
             return recipe
 
         except httpx.HTTPStatusError as e:
-            raise ExternalAPIError(
-                f"Spoonacular API error: {e!s}",
+            raise ExternalServiceException(
+                ErrorMessages.EXTERNAL_SERVICE_ERROR.format(service="Spoonacular", details=str(e)),
                 status_code=e.response.status_code,
             ) from e
-        except RecipeFilterError:
+        except ValidationException:
             raise
         except Exception as e:
-            raise RecipeProviderError(f"Failed to get recipe: {e!s}") from e
+            raise ExternalServiceException(ErrorMessages.RECIPE_FETCH_FAILED.format(details=str(e))) from e
 
     def _normalize_recipe(self, raw_recipe: dict[str, Any]) -> RecipeSearchResult:
-        """Convert Spoonacular recipe data to standard format."""
+        """Convert Spoonacular recipe data to standard format.
+
+        Args:
+            raw_recipe: Raw recipe data from Spoonacular API.
+
+        Returns:
+            Normalized RecipeSearchResult object.
+        """
         # Extract ingredients
         ingredients: list[str] = []
         for ingredient in raw_recipe.get("extendedIngredients", []):

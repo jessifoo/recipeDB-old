@@ -4,11 +4,10 @@ import asyncio
 from typing import AsyncGenerator
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-
 from app.core.config import settings
 from app.models.models import Base
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 
 # Create async engine for testing
 test_engine = create_async_engine(
@@ -40,7 +39,7 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
 
 
-@pytest.fixture
+@pytest.fixture()
 async def async_session(init_db) -> AsyncGenerator[AsyncSession, None]:
     """Create a new database session for a test."""
     async with async_session_maker() as session:

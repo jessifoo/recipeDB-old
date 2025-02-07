@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 class RecipeSearchService:
     """Service for searching recipes across multiple sources."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         """Initialize the recipe search service.
 
         Args:
@@ -76,12 +76,7 @@ class RecipeSearchService:
                 )
 
             # Otherwise, search local database first
-            local_results = await self._search_local(
-                query=query,
-                filters=filters,
-                offset=offset,
-                limit=limit,
-            )
+            local_results = await self._search_local(query=query, filters=filters, offset=offset, limit=limit)
 
             # If we have enough local results or external providers are disabled,
             # return local results only
@@ -119,9 +114,7 @@ class RecipeSearchService:
                             continue
 
                 return RecipeList(
-                    total=len(all_results),
-                    results=all_results[:limit] if limit else all_results,
-                    source="all",
+                    total=len(all_results), results=all_results[:limit] if limit else all_results, source="all"
                 )
 
             except Exception:
@@ -129,14 +122,11 @@ class RecipeSearchService:
                 return local_results
 
         except Exception as e:
-            raise APIError(f"Recipe search failed: {e!s}")
+            msg = f"Recipe search failed: {e!s}"
+            raise APIError(msg)
 
     async def _search_local(
-        self,
-        query: str,
-        filters: dict[str, Any] | None = None,
-        offset: int | None = None,
-        limit: int | None = None,
+        self, query: str, filters: dict[str, Any] | None = None, offset: int | None = None, limit: int | None = None
     ) -> RecipeList:
         """Search local database for recipes.
 
@@ -150,12 +140,7 @@ class RecipeSearchService:
             RecipeList: List of recipes matching the search criteria
         """
         # Build the base query
-        stmt = select(Recipe).where(
-            or_(
-                Recipe.title.ilike(f"%{query}%"),
-                Recipe.variations.ilike(f"%{query}%"),
-            ),
-        )
+        stmt = select(Recipe).where(or_(Recipe.title.ilike(f"%{query}%"), Recipe.variations.ilike(f"%{query}%")))
 
         # Apply filters
         if filters:
@@ -203,8 +188,4 @@ class RecipeSearchService:
             for recipe in recipes
         ]
 
-        return RecipeList(
-            total=len(results),
-            results=results,
-            source="local",
-        )
+        return RecipeList(total=len(results), results=results, source="local")

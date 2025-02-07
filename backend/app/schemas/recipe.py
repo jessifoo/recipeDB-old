@@ -33,15 +33,13 @@ class RecipeBase(BaseModel):
                 "instructions": ["Boil pasta", "Cook pancetta", "Mix eggs and cheese", "Combine all ingredients"],
                 "ingredients": ["400g spaghetti", "200g pancetta", "4 eggs", "100g pecorino cheese"],
                 "tags": ["pasta", "italian", "quick"],
-            },
-        },
+            }
+        }
     )
 
 
 class RecipeCreate(RecipeBase):
     """Recipe creation attributes."""
-
-    pass
 
 
 class RecipeUpdate(BaseModel):
@@ -57,7 +55,7 @@ class RecipeUpdate(BaseModel):
     tags: list[str] | None = Field(default=None, description="Recipe tags")
 
     model_config = ConfigDict(
-        json_schema_extra={"example": {"title": "Updated Spaghetti Carbonara", "cooking_time": 25, "servings": 2}},
+        json_schema_extra={"example": {"title": "Updated Spaghetti Carbonara", "cooking_time": 25, "servings": 2}}
     )
 
 
@@ -89,8 +87,8 @@ class RecipeSearchFilter(BaseModel):
                 "max_cooking_time": 30,
                 "tags": ["quick", "easy"],
                 "allergens_exclude": ["nuts", "dairy"],
-            },
-        },
+            }
+        }
     )
 
 

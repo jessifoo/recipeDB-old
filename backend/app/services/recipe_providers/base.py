@@ -61,7 +61,7 @@ class RecipeProvider(ABC):
         ],
     }
 
-    def __init__(self, api_key: str | None = None):
+    def __init__(self, api_key: str | None = None) -> None:
         """Initialize the recipe provider.
 
         Args:
@@ -95,7 +95,6 @@ class RecipeProvider(ABC):
         Returns:
             RecipeList: List of recipes matching the search criteria
         """
-        pass
 
     @abstractmethod
     async def get_recipe_by_id(self, recipe_id: str) -> RecipeSearchResult:
@@ -107,7 +106,6 @@ class RecipeProvider(ABC):
         Returns:
             RecipeSearchResult: Detailed recipe information
         """
-        pass
 
     def _normalize_recipe(self, raw_recipe: dict[str, Any]) -> RecipeSearchResult:
         """Convert provider-specific recipe data to standard format.
@@ -120,7 +118,8 @@ class RecipeProvider(ABC):
         Returns:
             RecipeSearchResult: Normalized recipe data
         """
-        raise NotImplementedError("Each provider must implement recipe normalization")
+        msg = "Each provider must implement recipe normalization"
+        raise NotImplementedError(msg)
 
     def _contains_allergen(self, text: str, allergen: str) -> bool:
         """Check if text contains any keywords for a specific allergen.
@@ -157,7 +156,7 @@ class RecipeProvider(ABC):
                     " ".join(recipe.ingredients or []),
                     " ".join(recipe.instructions or []),
                 ],
-            ),
+            )
         ).lower()
 
         # Check for each default allergen

@@ -5,73 +5,81 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from app.core.config import settings
+from app.core.constants import ErrorMessages
 from app.core.exceptions import ConfigurationError
-
-from .api_ninjas import APINinjasProvider
-from .edamam import EdamamProvider
-from .mock import MockRecipeProvider
-from .recipe_puppy import RecipePuppyProvider
-from .spoonacular import SpoonacularProvider
-from .tasty import TastyProvider
-from .themealdb import MealDBProvider
+from app.services.recipe_providers.api_ninjas import APINinjasProvider
+from app.services.recipe_providers.edamam import EdamamProvider
+from app.services.recipe_providers.mealdb import TheMealDBProvider
+from app.services.recipe_providers.recipe_puppy import RecipePuppyProvider
+from app.services.recipe_providers.spoonacular import SpoonacularProvider
+from app.services.recipe_providers.tasty import TastyProvider
 
 if TYPE_CHECKING:
-    from .base import RecipeProvider
+    from collections.abc import Mapping
+
+    from app.services.recipe_providers.base import RecipeProvider
 
 
 class RecipeProviderFactory:
     """Factory for creating recipe providers."""
 
-    _providers: dict[str, type[RecipeProvider]] = {
+    PROVIDERS: Mapping[str, type[RecipeProvider]] = {
         "spoonacular": SpoonacularProvider,
-        "edamam": EdamamProvider,
-        "api_ninjas": APINinjasProvider,
         "tasty": TastyProvider,
-        "mealdb": MealDBProvider,
+        "edamam": EdamamProvider,
+        "mealdb": TheMealDBProvider,
         "recipe_puppy": RecipePuppyProvider,
-        "mock": MockRecipeProvider,
-        "local": MockRecipeProvider,  # Use mock provider as local for testing
+        "api_ninjas": APINinjasProvider,
     }
 
-    @classmethod
-    def get_provider(cls, provider_name: str = "local") -> RecipeProvider:
-        """Get a recipe provider instance.
+    def __init__(self) -> None:
+        """Initialize the factory."""
+        self._providers: dict[str, RecipeProvider] = {}
+
+    def get_provider(self, provider_name: str) -> RecipeProvider:
+        """Get a recipe provider by name.
 
         Args:
             provider_name: Name of the provider to get
 
         Returns:
-            RecipeProvider: Instance of the requested provider
+            Recipe provider instance
 
         Raises:
-            ConfigurationError: If the provider is not found or not configured
+            ConfigurationError: If provider initialization fails
         """
-        # Don't initialize external providers unless enabled
-        if provider_name not in ("local", "mock") and not settings.ENABLE_EXTERNAL_PROVIDERS:
-            raise ConfigurationError("External recipe providers are disabled")
+        if provider_name not in self._providers:
+            if provider_name not in self.PROVIDERS:
+                raise ConfigurationError(
+                    ErrorMessages.CONFIG_INVALID_VALUE.format(
+                        key="provider_name", details=f"Unknown provider: {provider_name}"
+                    )
+                )
 
-        provider_class = cls._providers.get(provider_name)
-        if not provider_class:
-            raise ConfigurationError(f"Unknown recipe provider: {provider_name}")
+            try:
+                provider_class = self.PROVIDERS[provider_name]
+                self._providers[provider_name] = provider_class()
+            except Exception as e:
+                raise ConfigurationError(
+                    ErrorMessages.RECIPE_PROVIDER_INIT_FAILED.format(provider=provider_name, details=str(e))
+                ) from e
 
-        try:
-            return provider_class()
-        except Exception as e:
-            raise ConfigurationError(f"Failed to initialize {provider_name} provider: {e!s}")
+        return self._providers[provider_name]
 
-    @classmethod
-    def get_all_providers(cls) -> list[RecipeProvider]:
-        """Get instances of all configured providers.
+    def get_all_providers(self) -> list[RecipeProvider]:
+        """Get all configured recipe providers.
 
         Returns:
-            List[RecipeProvider]: List of provider instances
+            List of recipe provider instances
         """
-        providers = []
-        for provider_name in cls._providers:
+        if not settings.ENABLE_EXTERNAL_PROVIDERS:
+            return []
+
+        providers: list[RecipeProvider] = []
+        for provider_name in self.PROVIDERS:
             try:
-                provider = cls.get_provider(provider_name)
-                providers.append(provider)
+                providers.append(self.get_provider(provider_name))
             except ConfigurationError:
-                # Skip providers that aren't properly configured
-                continue
+                continue  # Skip providers that fail to initialize
+
         return providers

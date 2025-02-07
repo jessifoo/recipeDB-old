@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
-from fastapi import HTTPException
 
+from app.core.exceptions import ExternalServiceError, NotFoundError, RecipeFilterError
 from app.schemas.recipe import RecipeList, RecipeSearchResult
 
 from .base import RecipeProvider
@@ -20,10 +20,7 @@ class MealDBProvider(RecipeProvider):
     def __init__(self) -> None:
         """Initialize TheMealDB provider."""
         super().__init__()
-        self.client = httpx.AsyncClient(
-            base_url=self.BASE_URL,
-            timeout=30.0,
-        )
+        self.client = httpx.AsyncClient(base_url=self.BASE_URL, timeout=30.0)
 
     async def search_recipes(
         self,
@@ -68,23 +65,12 @@ class MealDBProvider(RecipeProvider):
             end = offset + limit
             paginated_results = results[start:end]
 
-            return RecipeList(
-                total=len(results),
-                results=paginated_results,
-                source=self.source_name,
-            )
+            return RecipeList(total=len(results), results=paginated_results, source=self.source_name)
 
         except httpx.HTTPStatusError as e:
-            status_code = e.response.status_code
-            raise HTTPException(
-                status_code=status_code,
-                detail=f"TheMealDB API error: {e!s}",
-            )
+            raise ExternalServiceError(message=f"TheMealDB API error: {e!s}", status_code=e.response.status_code)
         except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to search recipes: {e!s}",
-            )
+            raise ExternalServiceError(message=f"Failed to search recipes: {e!s}")
 
     async def get_recipe_by_id(self, recipe_id: str) -> RecipeSearchResult:
         """Get recipe details by ID."""
@@ -94,40 +80,27 @@ class MealDBProvider(RecipeProvider):
             data = response.json()
 
             if not data.get("meals"):
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Recipe not found: {recipe_id}",
-                )
+                raise NotFoundError(message=f"Recipe not found: {recipe_id}")
 
             recipe = self._normalize_recipe(data["meals"][0])
 
             # Check for allergens
             if not self._filter_allergens(recipe):
-                raise HTTPException(
-                    status_code=404,
-                    detail="Recipe contains allergens",
-                )
+                raise RecipeFilterError(message="Recipe contains allergens")
 
             return recipe
 
         except httpx.HTTPStatusError as e:
-            status_code = e.response.status_code
-            raise HTTPException(
-                status_code=status_code,
-                detail=f"TheMealDB API error: {e!s}",
-            )
-        except HTTPException:
+            raise ExternalServiceError(message=f"TheMealDB API error: {e!s}", status_code=e.response.status_code)
+        except (NotFoundError, RecipeFilterError):
             raise
         except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to get recipe: {e!s}",
-            )
+            raise ExternalServiceError(message=f"Failed to get recipe: {e!s}")
 
     def _normalize_recipe(self, raw_recipe: dict[str, Any]) -> RecipeSearchResult:
         """Convert TheMealDB recipe data to standard format."""
         # Extract ingredients and measurements
-        ingredients = []
+        ingredients: list[str] = []
         for i in range(1, 21):  # TheMealDB has up to 20 ingredients
             ingredient = raw_recipe.get(f"strIngredient{i}")
             measure = raw_recipe.get(f"strMeasure{i}")
@@ -144,7 +117,7 @@ class MealDBProvider(RecipeProvider):
 
         # Map category to diet if possible
         category = raw_recipe.get("strCategory", "").lower()
-        diets = []
+        diets: list[str] = []
         if "vegetarian" in category or "vegetarian" in tags:
             diets.append("vegetarian")
         if "vegan" in category or "vegan" in tags:

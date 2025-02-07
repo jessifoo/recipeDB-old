@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
-from fastapi import HTTPException
 
 from app.core.config import settings
+from app.core.exceptions import ExternalServiceError, RecipeFilterError
 from app.schemas.recipe import RecipeList, RecipeSearchResult
 
 from .base import RecipeProvider
@@ -23,10 +23,7 @@ class EdamamProvider(RecipeProvider):
         super().__init__()
         self.app_id = settings.EDAMAM_APP_ID
         self.app_key = settings.EDAMAM_APP_KEY
-        self.client = httpx.AsyncClient(
-            base_url=self.BASE_URL,
-            timeout=30.0,
-        )
+        self.client = httpx.AsyncClient(base_url=self.BASE_URL, timeout=30.0)
 
     async def search_recipes(
         self,
@@ -40,10 +37,7 @@ class EdamamProvider(RecipeProvider):
     ) -> RecipeList:
         """Search for recipes using the Edamam API."""
         # Build health labels for allergen filtering
-        health_labels = [
-            "dairy-free",
-            "egg-free",
-        ]
+        health_labels = ["dairy-free", "egg-free"]
 
         params: dict[str, Any] = {
             "q": query,
@@ -75,23 +69,12 @@ class EdamamProvider(RecipeProvider):
             # Apply additional allergen filtering for soy and any missed items
             results = self._apply_allergen_filtering(results)
 
-            return RecipeList(
-                total=data.get("count", len(results)),
-                results=results[:limit],
-                source=self.source_name,
-            )
+            return RecipeList(total=data.get("count", len(results)), results=results[:limit], source=self.source_name)
 
         except httpx.HTTPStatusError as e:
-            status_code = e.response.status_code
-            raise HTTPException(
-                status_code=status_code,
-                detail=f"Edamam API error: {e!s}",
-            )
+            raise ExternalServiceError(message=f"Edamam API error: {e!s}", status_code=e.response.status_code)
         except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to search recipes: {e!s}",
-            )
+            raise ExternalServiceError(message=f"Failed to search recipes: {e!s}")
 
     async def get_recipe_by_id(self, recipe_id: str) -> RecipeSearchResult:
         """Get recipe details by ID."""
@@ -99,11 +82,7 @@ class EdamamProvider(RecipeProvider):
             # Edamam uses URLs as IDs, so we need to decode it
             response = await self.client.get(
                 recipe_id,  # Full URL from search results
-                params={
-                    "app_id": self.app_id,
-                    "app_key": self.app_key,
-                    "type": "public",
-                },
+                params={"app_id": self.app_id, "app_key": self.app_key, "type": "public"},
             )
             response.raise_for_status()
             recipe_data = response.json()["recipe"]
@@ -112,26 +91,16 @@ class EdamamProvider(RecipeProvider):
 
             # Check for allergens
             if not self._filter_allergens(recipe):
-                raise HTTPException(
-                    status_code=404,
-                    detail="Recipe contains allergens",
-                )
+                raise RecipeFilterError(message="Recipe contains allergens")
 
             return recipe
 
         except httpx.HTTPStatusError as e:
-            status_code = e.response.status_code
-            raise HTTPException(
-                status_code=status_code,
-                detail=f"Edamam API error: {e!s}",
-            )
-        except HTTPException:
+            raise ExternalServiceError(message=f"Edamam API error: {e!s}", status_code=e.response.status_code)
+        except RecipeFilterError:
             raise
         except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to get recipe: {e!s}",
-            )
+            raise ExternalServiceError(message=f"Failed to get recipe: {e!s}")
 
     def _normalize_recipe(self, raw_recipe: dict[str, Any]) -> RecipeSearchResult:
         """Convert Edamam recipe data to standard format."""
@@ -145,7 +114,7 @@ class EdamamProvider(RecipeProvider):
             cook_time = None
 
         # Extract diet labels
-        diets = []
+        diets: list[str] = []
         if raw_recipe.get("healthLabels"):
             for label in raw_recipe["healthLabels"]:
                 label = label.lower()

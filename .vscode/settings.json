@@ -19,6 +19,7 @@
   "python.testing.cwd": "${workspaceFolder}/backend/tests",
   "python.envFile": "${workspaceFolder}/backend/.env",
   "python.createEnvironment.contentButton": "hide",
+  "python.languageServer": "Pylance",
 
   // Environment settings
   "terminal.integrated.cwd": "${workspaceFolder}/backend",
@@ -29,12 +30,26 @@
   },
 
   // Ruff settings
+  "ruff.enable": true,
+  "ruff.organizeImports": true,
+  "ruff.fixAll": true,
+  "ruff.lint.run": "onSave",
+  "ruff.interpreter": ["${workspaceFolder}/backend/.venv/bin/python"],
+  "ruff.importStrategy": "fromEnvironment",
+  "ruff.codeAction.fixViolation.enable": true,
+  "ruff.lint.args": [
+    "--config=backend/pyproject.toml",
+    "--target-version=py311"
+  ],
+  "ruff.format.args": ["--config=backend/pyproject.toml"],
+
   "[python]": {
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.codeActionsOnSave": {
-      "source.fixAll": "explicit",
-      "source.organizeImports": "explicit"
+      "source.fixAll.ruff": true,
+      "source.organizeImports.ruff": true,
+      "source.fixAll": true
     }
   },
 
@@ -42,18 +57,20 @@
   "python.poetryPath": "poetry",
   "python.venvPath": "${workspaceFolder}/backend/.venv",
 
-  // Mypy settings
-  "mypy.enabled": true,
-  "mypy.dmypyExecutable": "${workspaceFolder}/backend/.venv/bin/dmypy",
-  "mypy.configFile": "backend/pyproject.toml",
-  "mypy.runUsingActiveInterpreter": true,
-  "mypy.targets": ["backend/app"],
-
   // Python Analysis settings
   "python.analysis.diagnosticSeverityOverrides": {
-    "reportPrivateUsage": "none",
-    "reportUnknownMemberType": "none",
-    "reportMissingTypeStubs": "none"
+    "reportPrivateUsage": "error",
+    "reportUnknownMemberType": "error",
+    "reportMissingTypeStubs": "error",
+    "reportUnknownVariableType": "error",
+    "reportUnknownArgumentType": "error",
+    "reportUnknownLambdaType": "error",
+    "reportUnknownParameterType": "error",
+    "reportMissingParameterType": "error",
+    "reportMissingTypeArgument": "error",
+    "reportInvalidTypeVarUse": "error",
+    "reportUnusedImport": "error",
+    "reportUndefinedVariable": "error"
   },
   "python.analysis.packageIndexDepths": [
     {
@@ -99,11 +116,12 @@
     "**/__pycache__": true,
     "**/.pytest_cache": true,
     "**/.mypy_cache": true,
-    "app/**": true
+    "app/**": true,
+    "**/tests/**": true,
+    "test_*.py": true
   },
 
   // Project-specific Python analysis settings
-  "python.analysis.fixAll": ["source.convertImportFormat"],
   "python.analysis.stubPath": "backend/app/types",
   "python.analysis.exclude": [
     "**/.git",
@@ -115,7 +133,8 @@
     "**/build",
     "**/dist",
     "app/**",
-    "**/backend/tests/**"
+    "**/tests/**",
+    "**/test_*.py"
   ],
   "python.analysis.diagnosticMode": "workspace",
   "python.analysis.importFormat": "absolute",

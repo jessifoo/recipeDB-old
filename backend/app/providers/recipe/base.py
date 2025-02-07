@@ -75,12 +75,7 @@ class RecipeProvider(ABC):
         ...
 
     @abstractmethod
-    async def get_random_recipes(
-        self,
-        *,
-        limit: int = 20,
-        tags: list[str] | None = None,
-    ) -> AsyncIterator[T]:
+    async def get_random_recipes(self, *, limit: int = 20, tags: list[str] | None = None) -> AsyncIterator[T]:
         """Get random recipes.
 
         Args:
@@ -102,4 +97,4 @@ class RecipeProvider(ABC):
 
     async def close(self) -> None:
         """Close any open connections."""
-        pass  # Override if provider needs cleanup
+        # Override if provider needs cleanup

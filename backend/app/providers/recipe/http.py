@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 from pydantic import BaseModel
 
+from app.core.constants import ErrorMessages
 from app.providers.recipe.exceptions import RecipeNotFoundError, RecipeProviderError, RecipeProviderTimeout
 
 if TYPE_CHECKING:
@@ -25,11 +26,7 @@ class RecipeHTTPClient:
     """Base HTTP client for recipe providers."""
 
     def __init__(
-        self,
-        base_url: str,
-        api_key: str | None = None,
-        timeout: float = 30.0,
-        headers: dict[str, str] | None = None,
+        self, base_url: str, api_key: str | None = None, timeout: float = 30.0, headers: dict[str, str] | None = None
     ) -> None:
         """Initialize the HTTP client.
 
@@ -50,19 +47,11 @@ class RecipeHTTPClient:
         """Get the HTTP client, creating it if necessary."""
         if self._client is None:
             self._client = httpx.AsyncClient(
-                base_url=self.base_url,
-                timeout=self.timeout,
-                headers=self.headers,
-                follow_redirects=True,
+                base_url=self.base_url, timeout=self.timeout, headers=self.headers, follow_redirects=True
             )
         return self._client
 
-    async def get(
-        self,
-        path: str,
-        *,
-        params: dict[str, Any] | None = None,
-    ) -> APIResponse:
+    async def get(self, path: str, *, params: dict[str, Any] | None = None) -> APIResponse:
         """Make a GET request.
 
         Args:
@@ -78,34 +67,26 @@ class RecipeHTTPClient:
             RecipeProviderTimeout: On timeout
         """
         try:
-            response = await self.client.get(
-                path.lstrip("/"),
-                params=params,
-            )
+            response = await self.client.get(path.lstrip("/"), params=params)
             response.raise_for_status()
 
-            return APIResponse(
-                status_code=response.status_code,
-                data=response.json(),
-                headers=dict(response.headers),
-            )
+            return APIResponse(status_code=response.status_code, data=response.json(), headers=dict(response.headers))
 
         except httpx.TimeoutException as e:
-            raise RecipeProviderTimeout("Request timed out") from e
+            raise RecipeProviderTimeout(ErrorMessages.EXTERNAL_SERVICE_TIMEOUT) from e
 
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
-                raise RecipeNotFoundError("Recipe not found") from e
+                raise RecipeNotFoundError(ErrorMessages.RECIPE_NOT_FOUND) from e
             raise RecipeProviderError(
-                f"API request failed: {e.response.text}",
-                status_code=e.response.status_code,
+                ErrorMessages.API_REQUEST_FAILED.format(details=e.response.text), status_code=e.response.status_code
             ) from e
 
         except httpx.HTTPError as e:
-            raise RecipeProviderError(f"HTTP error: {e}") from e
+            raise RecipeProviderError(ErrorMessages.HTTP_ERROR.format(details=str(e))) from e
 
         except Exception as e:
-            raise RecipeProviderError(f"Unexpected error: {e}") from e
+            raise RecipeProviderError(ErrorMessages.UNKNOWN_ERROR) from e
 
     async def close(self) -> None:
         """Close the HTTP client."""
@@ -117,6 +98,6 @@ class RecipeHTTPClient:
         """Enter async context."""
         return self
 
-    async def __aexit__(self, *_: Any) -> None:
+    async def __aexit__(self, *_: object) -> None:
         """Exit async context."""
         await self.close()

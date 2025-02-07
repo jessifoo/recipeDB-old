@@ -1,12 +1,11 @@
 """Test module for database models."""
 
 import pytest
+from app.models.models import Recipe
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.models import Recipe
 
-
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_create_recipe(async_session: AsyncSession):
     """Test creating a recipe."""
     recipe = Recipe(

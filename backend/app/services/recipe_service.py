@@ -2,27 +2,17 @@
 
 from __future__ import annotations
 
-from http import HTTPStatus
-from typing import TYPE_CHECKING
-
-from fastapi import HTTPException
-
-from app.schemas.recipe import RecipeList
-from app.services.exceptions import (
-    ExternalAPIError,
-    RecipeFilterError,
-    RecipeNotFoundError,
-    RecipeProviderError,
-    RecipeServiceError,
-)
+from app.core.config import settings
+from app.core.error_messages import RECIPE_FETCH_FAILED, RECIPE_SEARCH_FAILED
+from app.core.exceptions import ExternalServiceError, NotFoundError, RecipeFilterError
+from app.schemas.recipe import RecipeList, RecipeSearchResult
 from app.services.recipe_providers.factory import RecipeProviderFactory
-
-if TYPE_CHECKING:
-    from app.schemas.recipe import RecipeSearchResult
 
 
 class RecipeService:
     """Service layer for recipe operations."""
+
+    ENABLED_PROVIDERS = ["edamam", "spoonacular", "mealdb"]  # Default providers
 
     def __init__(self) -> None:
         """Initialize the recipe service."""
@@ -41,8 +31,8 @@ class RecipeService:
     ) -> RecipeList:
         """Search for recipes across all providers or a specific provider."""
         try:
-            if provider:
-                recipe_provider = self.provider_factory.get_provider(provider)
+            recipe_provider = self.provider_factory.get_provider(provider) if provider else None
+            if recipe_provider:
                 return await recipe_provider.search_recipes(
                     query=query,
                     offset=offset,
@@ -53,11 +43,14 @@ class RecipeService:
                     max_time=max_time,
                 )
 
-            # If no specific provider, aggregate results from all providers
-            results = []
+            # If no specific provider, search across all providers
+            results: list[RecipeSearchResult] = []
             total = 0
-            for provider_instance in self.provider_factory.get_all_providers():
+            enabled_providers = self.ENABLED_PROVIDERS if settings.ENABLE_EXTERNAL_PROVIDERS else ["local"]
+
+            for provider_name in enabled_providers:
                 try:
+                    provider_instance = self.provider_factory.get_provider(provider_name)
                     provider_results = await provider_instance.search_recipes(
                         query=query,
                         offset=offset,
@@ -69,31 +62,21 @@ class RecipeService:
                     )
                     results.extend(provider_results.results)
                     total += provider_results.total
-                except RecipeServiceError:
+                except Exception:
                     # Log error but continue with other providers
                     continue
 
-            return RecipeList(
-                total=total,
-                results=results[:limit],
-                source="aggregated",
-            )
+            # Sort and paginate combined results
+            start = offset
+            end = offset + limit
+            paginated_results = results[start:end]
 
-        except ExternalAPIError as e:
-            raise HTTPException(
-                status_code=e.status_code or HTTPStatus.BAD_GATEWAY,
-                detail=str(e),
-            ) from e
-        except RecipeProviderError as e:
-            raise HTTPException(
-                status_code=HTTPStatus.BAD_GATEWAY,
-                detail=str(e),
-            ) from e
+            return RecipeList(total=total, results=paginated_results, source="all")
+
+        except ExternalServiceError:
+            raise
         except Exception as e:
-            raise HTTPException(
-                status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-                detail=f"Recipe search failed: {e!s}",
-            ) from e
+            raise ExternalServiceError(message=RECIPE_SEARCH_FAILED.format(details=str(e)))
 
     async def get_recipe_by_id(self, recipe_id: str, provider: str) -> RecipeSearchResult:
         """Get a recipe by ID from a specific provider."""
@@ -101,28 +84,7 @@ class RecipeService:
             recipe_provider = self.provider_factory.get_provider(provider)
             return await recipe_provider.get_recipe_by_id(recipe_id)
 
-        except ExternalAPIError as e:
-            raise HTTPException(
-                status_code=e.status_code or HTTPStatus.BAD_GATEWAY,
-                detail=str(e),
-            ) from e
-        except RecipeFilterError as e:
-            raise HTTPException(
-                status_code=HTTPStatus.NOT_FOUND,
-                detail=str(e),
-            ) from e
-        except RecipeNotFoundError as e:
-            raise HTTPException(
-                status_code=HTTPStatus.NOT_FOUND,
-                detail=str(e),
-            ) from e
-        except RecipeProviderError as e:
-            raise HTTPException(
-                status_code=HTTPStatus.BAD_GATEWAY,
-                detail=str(e),
-            ) from e
+        except (ExternalServiceError, NotFoundError, RecipeFilterError):
+            raise
         except Exception as e:
-            raise HTTPException(
-                status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-                detail=f"Failed to get recipe: {e!s}",
-            ) from e
+            raise ExternalServiceError(message=RECIPE_FETCH_FAILED.format(details=str(e)))

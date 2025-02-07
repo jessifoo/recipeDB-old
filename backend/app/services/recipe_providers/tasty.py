@@ -9,6 +9,7 @@ import httpx
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.core.constants import ErrorMessages
 from app.schemas.recipe import RecipeList, RecipeSearchResult
 from app.services.recipe_providers.base import RecipeProvider
 
@@ -24,12 +25,7 @@ class TastyProvider(RecipeProvider):
         self.client = httpx.AsyncClient(
             base_url=self.BASE_URL,
             headers=(
-                {
-                    "X-RapidAPI-Key": self.api_key,
-                    "X-RapidAPI-Host": "tasty.p.rapidapi.com",
-                }
-                if self.api_key
-                else {}
+                {"X-RapidAPI-Key": self.api_key, "X-RapidAPI-Host": "tasty.p.rapidapi.com"} if self.api_key else {}
             ),
             timeout=30.0,
         )
@@ -79,22 +75,17 @@ class TastyProvider(RecipeProvider):
             if max_time:
                 results = [r for r in results if r.total_time and r.total_time <= max_time]
 
-            return RecipeList(
-                total=data.get("count", len(results)),
-                results=results[:limit],
-                source=self.source_name,
-            )
+            return RecipeList(total=data.get("count", len(results)), results=results[:limit], source=self.source_name)
 
         except httpx.HTTPStatusError as e:
-            status_code = e.response.status_code
             raise HTTPException(
-                status_code=status_code,
-                detail=f"Tasty API error: {e!s}",
+                status_code=e.response.status_code,
+                detail=ErrorMessages.EXTERNAL_SERVICE_ERROR.format(service="Tasty", details=str(e)),
             ) from e
         except Exception as e:
             raise HTTPException(
                 status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-                detail=f"Failed to search recipes: {e!s}",
+                detail=ErrorMessages.RECIPE_SEARCH_FAILED.format(details=str(e)),
             ) from e
 
     async def get_recipe_by_id(self, recipe_id: str) -> RecipeSearchResult:
@@ -107,15 +98,14 @@ class TastyProvider(RecipeProvider):
             return self._normalize_recipe(recipe_data)
 
         except httpx.HTTPStatusError as e:
-            status_code = e.response.status_code
             raise HTTPException(
-                status_code=status_code,
-                detail=f"Tasty API error: {e!s}",
+                status_code=e.response.status_code,
+                detail=ErrorMessages.EXTERNAL_SERVICE_ERROR.format(service="Tasty", details=str(e)),
             ) from e
         except Exception as e:
             raise HTTPException(
                 status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-                detail=f"Failed to get recipe: {e!s}",
+                detail=ErrorMessages.RECIPE_FETCH_FAILED.format(details=str(e)),
             ) from e
 
     def _normalize_recipe(self, raw_recipe: dict[str, Any]) -> RecipeSearchResult:

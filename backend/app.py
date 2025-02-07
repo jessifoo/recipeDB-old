@@ -18,14 +18,12 @@ app = FastAPI()
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL is None:
-    raise ValueError("DATABASE_URL environment variable is not set")
+    msg = "DATABASE_URL environment variable is not set"
+    raise ValueError(msg)
 
 engine = create_async_engine(DATABASE_URL)
 AsyncSessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    class_=AsyncSession,
-    expire_on_commit=False,
+    autocommit=False, autoflush=False, class_=AsyncSession, expire_on_commit=False
 ).configure(bind=engine)
 
 # Register routes

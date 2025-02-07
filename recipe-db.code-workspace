@@ -21,6 +21,9 @@
     "python.terminal.launchArgs": ["zsh"],
     "terminal.integrated.env.osx": {
       "VIRTUAL_ENV": "${workspaceFolder}/backend/.venv"
-    }
+    },
+    "terminal.integrated.accessibleViewFocusOnCommandExecution": false,
+    "terminal.integrated.defaultProfile.osx": "zsh (2)",
+    "terminal.integrated.sendKeybindingsToShell": true
   }
 }

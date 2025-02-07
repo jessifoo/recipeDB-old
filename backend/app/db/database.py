@@ -35,8 +35,7 @@ Base = declarative_base()
 
 
 def get_db() -> Generator[Session, None, None]:
-    """
-    Get database session.
+    """Get database session.
 
     Yields:
         SQLAlchemy Session: Database session that is automatically closed after use.
