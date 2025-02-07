@@ -1,0 +1,29 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "codium.codeCompletion.enable": false,
+    "codeQL.createQuery.qlPackLocation": "/Users/jessicajohnson/CascadeProjects/windsurf-project",
+    "Codegeex.CommitMessageStyle": "Default",
+    "Codegeex.SidebarUI.LanguagePreference": "English",
+    "Codegeex.Chat.LanguagePreference": "English",
+    "Codegeex.Comment.LanguagePreference": "English",
+    "Codegeex.CommitMessage.LanguagePreference": "English",
+    "Codegeex.RepoIndex": true,
+    "python.createEnvironment.contentButton": "show",
+    "python.terminal.executeInFileDir": true,
+    "python.testing.cwd": "/backend/tests",
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": true,
+    "python.terminal.launchArgs": ["zsh"],
+    "terminal.integrated.env.osx": {
+      "VIRTUAL_ENV": "${workspaceFolder}/backend/.venv"
+    },
+    "terminal.integrated.accessibleViewFocusOnCommandExecution": false,
+    "terminal.integrated.defaultProfile.osx": "zsh (2)",
+    "terminal.integrated.sendKeybindingsToShell": true
+  }
+}

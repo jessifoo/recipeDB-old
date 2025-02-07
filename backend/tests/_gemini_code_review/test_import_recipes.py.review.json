@@ -1,0 +1,46 @@
+{
+  "filename": "test_import_recipes.py",
+  "category": "Bug Reports",
+  "issues": [
+    {
+      "type": "Missing Mocking",
+      "severity": "High",
+      "description": "The `test_import_recipes` function uses `Recipe.query.all()` and `Recipe.query.filter_by()`, which interact with the database. However, the database interactions are not mocked in this test, meaning it relies on a real database connection and potentially modifies the database state. This can lead to inconsistent test results and side effects."
+    },
+    {
+      "type": "Missing Async in Tests",
+      "severity": "High",
+      "description": "The test functions `test_import_recipes`, `test_normalize_cooking_method`, and `test_detect_allergens` are not defined as asynchronous, even though they are likely intended to be used with an asynchronous test runner like pytest-asyncio (given the use of `AsyncSession`). This might lead to unexpected behavior or errors during test execution."
+    },
+    {
+      "type": "Missing Functions",
+      "severity": "High",
+      "description": "The code references functions `normalize_cooking_method`, `detect_allergens_from_title`, and `import_recipes`, but their implementations are not provided. This will cause a `NameError` when the tests are run."
+    },
+    {
+      "type": "Missing Fixture",
+      "severity": "High",
+      "description": "The `test_import_recipes` function uses a fixture `sample_csv`, but it is not defined in the provided code. This will cause a `FixtureLookupError` when the tests are run."
+    },
+    {
+      "type": "Missing Import",
+      "severity": "High",
+      "description": "The code uses `AsyncMock` but doesn't import it. This will cause a `NameError` when the tests are run. It should be imported from `unittest.mock`."
+    },
+    {
+      "type": "Incorrect Assertion",
+      "severity": "Medium",
+      "description": "In `test_normalize_cooking_method`, the assertion `assert normalize_cooking_method(\"unknown method\") == \"stovetop\"` might be incorrect. It's unlikely that an unknown cooking method should default to \"stovetop\". It might be more appropriate to return `None` or a specific value indicating an unknown method."
+    },
+    {
+      "type": "Hardcoded Values",
+      "severity": "Low",
+      "description": "The `test_import_recipes` function has hardcoded values for recipe attributes like title, prep_time, cook_time, etc. This makes the test less flexible and harder to maintain. It would be better to use the `sample_recipe_data` fixture or define these values dynamically based on the input CSV."
+    },
+    {
+      "type": "Missing Test Coverage",
+      "severity": "Low",
+      "description": "The provided tests only cover a small portion of the `RecipeManager` functionality. There are no tests for other methods like creating, updating, or deleting recipes. This can lead to undetected bugs in those areas."
+    }
+  ]
+}

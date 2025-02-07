@@ -1,0 +1,51 @@
+{
+  "filename": "import_recipes.py",
+  "category": "Basic Code Review",
+  "issues": [
+    {
+      "type": "Maintainability",
+      "severity": "Medium",
+      "description": "The `normalize_cooking_method` function has a long chain of `if/elif` statements. This can be difficult to read and maintain, especially as more cooking methods are added. Consider using a dictionary-based lookup or a more structured approach to mapping methods."
+    },
+    {
+      "type": "Maintainability",
+      "severity": "Low",
+      "description": "The `normalize_cooking_method` function has a default return value of 'stovetop'. It might be better to raise an exception or return a specific 'unknown' value if no match is found, to explicitly handle cases where the cooking method is not recognized."
+    },
+    {
+      "type": "Maintainability",
+      "severity": "Low",
+      "description": "The `detect_allergens_from_title` function uses repetitive code for each allergen. This could be refactored to use a loop and a list of allergens to make it more concise and easier to extend."
+    },
+    {
+      "type": "Code Quality",
+      "severity": "Medium",
+      "description": "The script assumes that the 'ingredients' and 'instructions' fields will be populated later by scraping the source URL. This is not explicitly stated in the code and could lead to confusion. Adding a comment or TODO to clarify this would improve readability."
+    },
+    {
+      "type": "Maintainability",
+      "severity": "Low",
+      "description": "The script uses hardcoded values like '10' for batch commits. It would be better to define these as constants at the top of the file to make them easier to modify and understand."
+    },
+    {
+      "type": "Code Quality",
+      "severity": "Low",
+      "description": "The script uses `print` statements for logging. It would be better to use a proper logging library like `logging` to provide more control over logging levels and output formats."
+    },
+    {
+      "type": "Adherence to Patterns",
+      "severity": "Low",
+      "description": "The script directly interacts with the database using `db.session`. It might be better to abstract these interactions into a separate data access layer or repository to improve separation of concerns and testability."
+    },
+    {
+      "type": "Code Quality",
+      "severity": "Low",
+      "description": "The script uses a bare `except` clause in the `import_recipes` function (implicitly when reading the file). It's generally recommended to catch specific exceptions to avoid masking unexpected errors."
+    },
+    {
+      "type": "Maintainability",
+      "severity": "Low",
+      "description": "The script uses `sys.path.append` to add the parent directory to the Python path. This can be fragile and might not work as expected in all environments. Consider using a more robust method for managing dependencies, such as a virtual environment and a `setup.py` file."
+    }
+  ]
+}

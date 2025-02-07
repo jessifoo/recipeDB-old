@@ -1,0 +1,147 @@
+{
+  // Python settings
+  "python.analysis.typeCheckingMode": "strict",
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.analysis.extraPaths": ["backend", "backend/app"],
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+  "python.autoComplete.extraPaths": [
+    "${workspaceFolder}/backend/.venv/lib/python3.11/site-packages"
+  ],
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.indexing": true,
+  "python.testing.pytestArgs": [
+    "tests",
+    "-v",
+    "--tb=short",
+    "--asyncio-mode=auto"
+  ],
+  "python.testing.cwd": "${workspaceFolder}/backend/tests",
+  "python.envFile": "${workspaceFolder}/backend/.env",
+  "python.createEnvironment.contentButton": "hide",
+  "python.languageServer": "Pylance",
+
+  // Environment settings
+  "terminal.integrated.cwd": "${workspaceFolder}/backend",
+  "terminal.integrated.env.osx": {
+    "PYTHONPATH": "${workspaceFolder}/backend",
+    "APP_ENV": "development",
+    "BACKEND_CORS_ORIGINS": "http://localhost:3000"
+  },
+
+  // Ruff settings
+  "ruff.enable": true,
+  "ruff.organizeImports": true,
+  "ruff.fixAll": true,
+  "ruff.lint.run": "onSave",
+  "ruff.interpreter": ["${workspaceFolder}/backend/.venv/bin/python"],
+  "ruff.importStrategy": "fromEnvironment",
+  "ruff.codeAction.fixViolation.enable": true,
+  "ruff.lint.args": [
+    "--config=backend/pyproject.toml",
+    "--target-version=py311"
+  ],
+  "ruff.format.args": ["--config=backend/pyproject.toml"],
+
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": true,
+      "source.organizeImports.ruff": true,
+      "source.fixAll": true
+    }
+  },
+
+  // Poetry settings
+  "python.poetryPath": "poetry",
+  "python.venvPath": "${workspaceFolder}/backend/.venv",
+
+  // Python Analysis settings
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportPrivateUsage": "error",
+    "reportUnknownMemberType": "error",
+    "reportMissingTypeStubs": "error",
+    "reportUnknownVariableType": "error",
+    "reportUnknownArgumentType": "error",
+    "reportUnknownLambdaType": "error",
+    "reportUnknownParameterType": "error",
+    "reportMissingParameterType": "error",
+    "reportMissingTypeArgument": "error",
+    "reportInvalidTypeVarUse": "error",
+    "reportUnusedImport": "error",
+    "reportUndefinedVariable": "error"
+  },
+  "python.analysis.packageIndexDepths": [
+    {
+      "name": "app",
+      "depth": 5
+    },
+    {
+      "name": "tests",
+      "depth": 2
+    },
+    {
+      "name": "sqlalchemy",
+      "depth": 2
+    },
+    {
+      "name": "pydantic",
+      "depth": 2
+    }
+  ],
+
+  // Project-specific TypeScript/React settings
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  },
+
+  // Project-specific search settings
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/venv": true,
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "app/**": true,
+    "**/tests/**": true,
+    "test_*.py": true
+  },
+
+  // Project-specific Python analysis settings
+  "python.analysis.stubPath": "backend/app/types",
+  "python.analysis.exclude": [
+    "**/.git",
+    "**/.venv",
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/.mypy_cache",
+    "**/build",
+    "**/dist",
+    "app/**",
+    "**/tests/**",
+    "**/test_*.py"
+  ],
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.importFormat": "absolute",
+  "python.analysis.inlayHints.functionReturnTypes": true,
+  "python.analysis.inlayHints.variableTypes": true,
+  "python.analysis.useLibraryCodeForTypes": true,
+
+  // Disable Pixi warnings
+  "pixi.enabled": false
+}
