@@ -1,0 +1,19 @@
+name: Run python black code formatter
+on: [push, pull_request]
+
+jobs:
+  black:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run python black code formatter
+        uses: DataDog/action-py-black-formatter@bebd29d1572a82c8e4a9de3c42c1592529a7d6af
+        with:
+          additional_args: "" # optional, default is 
+          fail_on_error: true # optional, default is true
+          main_branch: "main" # optional, default is main
+          quiet_mode: false # optional, default is false
+          print_diff_mode: false # optional, default is false
+          check_mode: false # optional, default is false
+          only_changed_files: false # optional, default is false
+          base_commit: "" # optional, default is
