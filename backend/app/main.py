@@ -1,4 +1,4 @@
-"""Main application module."""
+"""Main FastAPI application."""
 
 from __future__ import annotations
 
@@ -10,8 +10,18 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.routes import (
+    allergens,
+    cuisine_types,
+    dietary_restrictions,
+    ingredients,
+    meal_types,
+    recipe_search,
+    recipes,
+)
 from app.core.config import settings
-from app.routes.routes import router as recipe_router
+from app.core.error_handlers import setup_error_handlers
+from app.core.error_messages import ErrorMessages
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -33,24 +43,42 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             json.dump(app.openapi(), f, indent=2)
 
 
-app = FastAPI(
-    title="RecipeDB",
-    description="Recipe Database API",
-    version="0.1.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
-    lifespan=lifespan,
-)
+def create_application() -> FastAPI:
+    """Create FastAPI application."""
+    app = FastAPI(
+        title=settings.PROJECT_NAME,
+        version=settings.VERSION,
+        description=settings.DESCRIPTION,
+        openapi_url=f"{settings.API_V1_STR}/openapi.json",
+        lifespan=lifespan,
+    )
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=getattr(settings, "ALLOWED_ORIGINS", ["*"]),  # Safely access setting
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    # Set up CORS
+    if settings.BACKEND_CORS_ORIGINS:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
-# Include routers
-app.include_router(recipe_router)
+    # Set up error handling
+    setup_error_handlers(app)
+
+    # Set up translations
+    ErrorMessages.setup_translations(settings.LOCALE_DIR)
+
+    # Include routers
+    app.include_router(recipe_search.router, prefix=settings.API_V1_STR)
+    app.include_router(recipes.router, prefix=settings.API_V1_STR)
+    app.include_router(allergens.router, prefix=settings.API_V1_STR)
+    app.include_router(cuisine_types.router, prefix=settings.API_V1_STR)
+    app.include_router(dietary_restrictions.router, prefix=settings.API_V1_STR)
+    app.include_router(ingredients.router, prefix=settings.API_V1_STR)
+    app.include_router(meal_types.router, prefix=settings.API_V1_STR)
+
+    return app
+
+
+app = create_application()

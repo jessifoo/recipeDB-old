@@ -2,14 +2,74 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TypedDict, cast
 
 import httpx
 
-from app.core.exceptions import ExternalServiceError, NotFoundError, RecipeFilterError
+from app.core.error_codes import ErrorCode
+from app.core.error_messages import ErrorMessages
+from app.core.exceptions import BusinessError, DomainError, ValidationError
 from app.schemas.recipe import RecipeList, RecipeSearchResult
+from app.services.recipe_providers.base import ProviderRecipeData, RecipeProvider
 
-from .base import RecipeProvider
+
+class MealDBRecipe(TypedDict, total=False):
+    """Type definition for TheMealDB recipe data."""
+
+    idMeal: str
+    strMeal: str
+    strDrinkAlternate: str | None
+    strCategory: str
+    strArea: str
+    strInstructions: str
+    strMealThumb: str
+    strTags: str
+    strYoutube: str
+    strSource: str
+    strImageSource: str
+    strCreativeCommonsConfirmed: str | None
+    dateModified: str | None
+    # Dynamic fields for ingredients and measures (1-20)
+    strIngredient1: str
+    strIngredient2: str
+    strIngredient3: str
+    strIngredient4: str
+    strIngredient5: str
+    strIngredient6: str
+    strIngredient7: str
+    strIngredient8: str
+    strIngredient9: str
+    strIngredient10: str
+    strIngredient11: str
+    strIngredient12: str
+    strIngredient13: str
+    strIngredient14: str
+    strIngredient15: str
+    strIngredient16: str
+    strIngredient17: str
+    strIngredient18: str
+    strIngredient19: str
+    strIngredient20: str
+    strMeasure1: str
+    strMeasure2: str
+    strMeasure3: str
+    strMeasure4: str
+    strMeasure5: str
+    strMeasure6: str
+    strMeasure7: str
+    strMeasure8: str
+    strMeasure9: str
+    strMeasure10: str
+    strMeasure11: str
+    strMeasure12: str
+    strMeasure13: str
+    strMeasure14: str
+    strMeasure15: str
+    strMeasure16: str
+    strMeasure17: str
+    strMeasure18: str
+    strMeasure19: str
+    strMeasure20: str
 
 
 class MealDBProvider(RecipeProvider):
@@ -32,13 +92,31 @@ class MealDBProvider(RecipeProvider):
         exclude: list[str] | None = None,
         max_time: int | None = None,
     ) -> RecipeList:
-        """Search for recipes using TheMealDB API."""
+        """Search for recipes using TheMealDB API.
+
+        Args:
+            query: Search query string
+            offset: Number of results to skip
+            limit: Maximum number of results to return
+            cuisine: Filter by cuisine type
+            diet: Filter by diet type
+            exclude: List of ingredients to exclude
+            max_time: Maximum cooking time in minutes
+
+        Returns:
+            RecipeList: List of recipes matching the search criteria
+
+        Raises:
+            DomainError: If the API request fails
+            ValidationError: If the search parameters are invalid
+            BusinessError: If no recipes match the filters
+        """
         try:
             # TheMealDB only supports name search
             response = await self.client.get("/search.php", params={"s": query})
             response.raise_for_status()
             data = response.json()
-            recipes = data.get("meals", []) or []
+            recipes = cast(list[ProviderRecipeData], data.get("meals", []) or [])
 
             # Convert recipes to standard format
             results = [self._normalize_recipe(recipe) for recipe in recipes]
@@ -68,37 +146,79 @@ class MealDBProvider(RecipeProvider):
             return RecipeList(total=len(results), results=paginated_results, source=self.source_name)
 
         except httpx.HTTPStatusError as e:
-            raise ExternalServiceError(message=f"TheMealDB API error: {e!s}", status_code=e.response.status_code)
+            raise DomainError(
+                message_template=ErrorMessages.EXTERNAL_SERVICE_ERROR,
+                code=ErrorCode.EXTERNAL_SERVICE_ERROR,
+                details={"service": "TheMealDB", "status_code": e.response.status_code, "error": str(e)},
+            ) from e
         except Exception as e:
-            raise ExternalServiceError(message=f"Failed to search recipes: {e!s}")
+            raise DomainError(
+                message_template=ErrorMessages.RECIPE_SEARCH_FAILED, code=ErrorCode.API_ERROR, details={"error": str(e)}
+            ) from e
 
     async def get_recipe_by_id(self, recipe_id: str) -> RecipeSearchResult:
-        """Get recipe details by ID."""
+        """Get recipe details by ID.
+
+        Args:
+            recipe_id: Recipe ID from the provider
+
+        Returns:
+            RecipeSearchResult: Detailed recipe information
+
+        Raises:
+            DomainError: If the API request fails
+            ValidationError: If the recipe ID is invalid
+            BusinessError: If the recipe contains allergens
+        """
         try:
             response = await self.client.get("/lookup.php", params={"i": recipe_id})
             response.raise_for_status()
             data = response.json()
 
             if not data.get("meals"):
-                raise NotFoundError(message=f"Recipe not found: {recipe_id}")
+                raise ValidationError(
+                    message_template=ErrorMessages.RECIPE_NOT_FOUND,
+                    code=ErrorCode.RECIPE_NOT_FOUND,
+                    details={"recipe_id": recipe_id},
+                )
 
-            recipe = self._normalize_recipe(data["meals"][0])
+            recipe = cast(ProviderRecipeData, data["meals"][0])
+            recipe_result = self._normalize_recipe(recipe)
 
             # Check for allergens
-            if not self._filter_allergens(recipe):
-                raise RecipeFilterError(message="Recipe contains allergens")
+            if not self._filter_allergens(recipe_result):
+                raise BusinessError(
+                    message_template=ErrorMessages.RECIPE_CONTAINS_ALLERGENS,
+                    code=ErrorCode.ALLERGEN_CONFLICT,
+                    details={"recipe_id": recipe_id, "allergens": self.DEFAULT_ALLERGENS},
+                )
 
-            return recipe
+            return recipe_result
 
         except httpx.HTTPStatusError as e:
-            raise ExternalServiceError(message=f"TheMealDB API error: {e!s}", status_code=e.response.status_code)
-        except (NotFoundError, RecipeFilterError):
+            raise DomainError(
+                message_template=ErrorMessages.EXTERNAL_SERVICE_ERROR,
+                code=ErrorCode.EXTERNAL_SERVICE_ERROR,
+                details={"service": "TheMealDB", "status_code": e.response.status_code, "error": str(e)},
+            ) from e
+        except (ValidationError, BusinessError):
             raise
         except Exception as e:
-            raise ExternalServiceError(message=f"Failed to get recipe: {e!s}")
+            raise DomainError(
+                message_template=ErrorMessages.RECIPE_FETCH_FAILED,
+                code=ErrorCode.API_ERROR,
+                details={"recipe_id": recipe_id, "error": str(e)},
+            ) from e
 
-    def _normalize_recipe(self, raw_recipe: dict[str, Any]) -> RecipeSearchResult:
-        """Convert TheMealDB recipe data to standard format."""
+    def _normalize_recipe(self, raw_recipe: ProviderRecipeData) -> RecipeSearchResult:
+        """Convert TheMealDB recipe data to standard format.
+
+        Args:
+            raw_recipe: Raw recipe data from TheMealDB API
+
+        Returns:
+            RecipeSearchResult: Normalized recipe data
+        """
         # Extract ingredients and measurements
         ingredients: list[str] = []
         for i in range(1, 21):  # TheMealDB has up to 20 ingredients

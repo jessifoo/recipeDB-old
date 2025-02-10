@@ -1,7 +1,3 @@
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
 [tool.poetry]
 name = "backend"
 version = "0.1.0"
@@ -12,14 +8,14 @@ packages = [{include = "app"}]
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
-fastapi = "^0.109.2"
-sqlalchemy = {extras = ["mypy"], version = "^2.0.37"}
-asyncpg = "^0.29.0"
-alembic = "^1.13.1"
-python-dotenv = "^1.0.0"
-structlog = "^24.1.0"
-tenacity = "^8.2.3"
-cachetools = "^5.3.2"
+fastapi = "^0.115.8"
+sqlalchemy = {extras = ["ruff"], version = "^2.0.38"}
+asyncpg = "^0.30.0"
+alembic = "^1.14.1"
+python-dotenv = "^1.0.1"
+structlog = "^25.1.0"
+tenacity = "^9.0.0"
+cachetools = "^5.5.1"
 fuzzywuzzy = "^0.18.0"
 python-Levenshtein = "^0.23.0"
 spoonacular = "^3.0"
@@ -39,6 +35,8 @@ passlib = {extras = ["bcrypt"], version = "^1.7.4"}
 cython = "^3.0.11"
 databases = "^0.9.0"
 werkzeug = "^3.0.1"
+sentry-sdk = {version = "^2.20.0", extras = ["fastapi"]}
+pydantic-extra-types = "^2.10.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.4"
@@ -52,6 +50,8 @@ types-python-jose = "^3.3.4.20240106"
 types-aiofiles = "^23.2.0.20240106"
 types-pytz = "^2024.1.0.20240203"
 types-cachetools = "^5.5.0.20240820"
+types-sqlalchemy = "^1.4.53.38"
+types-setuptools = "^69.1.0.20240310"
 # Documentation dependencies
 sphinx = "^7.2.6"
 sphinx-rtd-theme = "^2.0.0"  # ReadTheDocs theme
@@ -71,12 +71,19 @@ sphinx-gallery = "^0.18.0"  # Code examples gallery
 sphinx-markdown-builder = "^0.6.8"  # Markdown output
 sphinx-hoverxref = "^1.4.2"  # Tooltips on references
 sphinx-multiversion = "^0.2.4"  # Multiple doc versions
+semgrep = "^1.107.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
 line-length = 120
 indent-width = 4
 target-version = "py311"
-exclude = [
+src = ["app", "tests"]
+extend-include = ["backend"]
+extend-exclude = [
     ".bzr",
     ".direnv",
     ".eggs",
@@ -106,25 +113,47 @@ exclude = [
 fix = true
 unsafe-fixes = true
 show-fixes = true
+namespace-packages = ["types"]
+typing-modules = []  # Remove type stubs since we're using inline types
 
 [tool.ruff.lint]
-select = ["ALL"]
+select = [
+    "ALL",        # All rules
+    "TCH",        # Type checking
+    "PYI",        # Type stubs
+]
 ignore = [
-    "D211",
-    "D213",
-    "D100",
-    "ANN101",
-    "ANN102",
-    "PLR0913",
-    "B008",
-    "COM812",
-    "ISC001",
+    "D211",       # No blank lines before class docstring
+    "D213",       # Multi-line docstring summary should start at the second line
+    "D100",       # Missing docstring in public module
+    "ANN101",     # Missing type annotation for self in method
+    "ANN102",     # Missing type annotation for cls in classmethod
+    "PLR0913",    # Too many arguments to function call
+    "B008",       # Do not perform function calls in argument defaults
+    "COM812",     # Missing trailing comma
+    "ISC001",     # Single line implicit string concatenation
+    "TRY300",     # Consider moving try-except to context manager
+    "TRY301",     # Abstract raise to error boundary
+    "TCH001",     # Move application import into a type-checking block
+    "TCH002",     # Move third-party import into a type-checking block
+    "TCH003",     # Move standard library import into a type-checking block
+    "UP007",      # Use X | Y for type annotations
+    "TCH004",     # Move third-party import into a type-checking block (sentry-sdk)
+    "PGH003",     # Use specific rule codes when ignoring
 ]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
 force-single-line = false
 known-first-party = ["app"]
+known-third-party = [
+    "dotenv",
+    "sentry_sdk",
+    "fastapi",
+    "sqlalchemy",
+    "pydantic",
+]
+extra-standard-library = ["types"]
 required-imports = ["from __future__ import annotations"]
 section-order = [
     "future",
@@ -140,6 +169,13 @@ relative-imports-order = "closest-to-furthest"
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
+"__init__.py" = [
+    "D104",       # Missing docstring in public package
+    "F401",       # Imported but unused
+    "F403",       # Unable to detect undefined names
+    "TCH",        # Type checking related rules
+    "RUF100",     # Unused noqa directive
+]
 "migrations/*" = [
     "D",
     "E",
@@ -158,7 +194,6 @@ convention = "google"
     "ANN",
     "TCH",
 ]
-"__init__.py" = ["D104"]
 "app/api/routes/*" = ["B008"]
 "app/models/*" = ["N805"]
 "app/schemas/*" = ["N805"]

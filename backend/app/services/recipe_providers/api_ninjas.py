@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import httpx
-from fastapi import HTTPException
 
 from app.core.config import settings
+from app.core.error_codes import ErrorCode
+from app.core.error_messages import ErrorMessages
+from app.core.exceptions import DomainError, ValidationError
 from app.schemas.recipe import RecipeList, RecipeSearchResult
-
-from .base import RecipeProvider
+from app.services.recipe_providers.base import ProviderRecipeData, RecipeProvider
 
 
 class APINinjasProvider(RecipeProvider):
@@ -19,12 +20,21 @@ class APINinjasProvider(RecipeProvider):
     BASE_URL = "https://api.api-ninjas.com/v1"
 
     def __init__(self) -> None:
-        """Initialize the API Ninjas provider."""
+        """Initialize the API Ninjas provider.
+
+        Raises:
+            ValidationError: If API key is not configured.
+        """
+        if not settings.API_NINJAS_API_KEY:
+            raise ValidationError(
+                message_template=ErrorMessages.INVALID_CREDENTIALS,
+                code=ErrorCode.VALIDATION_ERROR,
+                details={"provider": "api_ninjas"},
+            )
+
         super().__init__(api_key=settings.API_NINJAS_API_KEY)
         self.client = httpx.AsyncClient(
-            base_url=self.BASE_URL,
-            headers={"X-Api-Key": self.api_key} if self.api_key else {},
-            timeout=30.0,
+            base_url=self.BASE_URL, headers={"X-Api-Key": self.api_key} if self.api_key else {}, timeout=30.0
         )
 
     async def search_recipes(
@@ -37,17 +47,31 @@ class APINinjasProvider(RecipeProvider):
         exclude: list[str] | None = None,
         max_time: int | None = None,
     ) -> RecipeList:
-        """Search for recipes using the API Ninjas API."""
-        params: dict[str, Any] = {
-            "query": query,
-            "offset": offset,
-            "limit": limit,
-        }
+        """Search for recipes using the API Ninjas API.
+
+        Args:
+            query: Search query string
+            offset: Number of results to skip
+            limit: Maximum number of results to return
+            cuisine: Filter by cuisine type
+            diet: Filter by diet type
+            exclude: List of ingredients to exclude
+            max_time: Maximum cooking time in minutes
+
+        Returns:
+            RecipeList: List of recipes matching the search criteria
+
+        Raises:
+            DomainError: If the API request fails
+            ValidationError: If the search parameters are invalid
+            BusinessError: If no recipes match the filters
+        """
+        params: dict[str, Any] = {"query": query, "offset": offset, "limit": limit}
 
         try:
             response = await self.client.get("/recipes", params=params)
             response.raise_for_status()
-            recipes = response.json()
+            recipes = cast(list[ProviderRecipeData], response.json())
 
             # Convert recipes to standard format
             results = [self._normalize_recipe(recipe) for recipe in recipes]
@@ -69,59 +93,53 @@ class APINinjasProvider(RecipeProvider):
             if max_time:
                 results = [r for r in results if r.total_time and r.total_time <= max_time]
 
-            return RecipeList(
-                total=len(results),
-                results=results[:limit],
-                source=self.source_name,
-            )
+            return RecipeList(total=len(results), results=results[:limit], source=self.source_name)
 
         except httpx.HTTPStatusError as e:
-            status_code = e.response.status_code
-            raise HTTPException(
-                status_code=status_code,
-                detail=f"API Ninjas API error: {e!s}",
-            )
+            raise DomainError(
+                message_template=ErrorMessages.EXTERNAL_SERVICE_ERROR,
+                code=ErrorCode.EXTERNAL_SERVICE_ERROR,
+                details={"service": "API Ninjas", "status_code": e.response.status_code, "error": str(e)},
+            ) from e
         except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to search recipes: {e!s}",
-            )
+            raise DomainError(
+                message_template=ErrorMessages.RECIPE_SEARCH_FAILED, code=ErrorCode.API_ERROR, details={"error": str(e)}
+            ) from e
 
     async def get_recipe_by_id(self, recipe_id: str) -> RecipeSearchResult:
         """Get recipe details by ID.
 
-        Note: API Ninjas doesn't support retrieving recipes by ID,
-        so we'll search by title and return the first match.
+        Args:
+            recipe_id: Recipe ID from the provider
+
+        Returns:
+            RecipeSearchResult: Detailed recipe information
+
+        Raises:
+            DomainError: If the API request fails
+            ValidationError: If the recipe ID is invalid
+            BusinessError: If the recipe contains allergens
         """
-        try:
-            response = await self.client.get("/recipes", params={"query": recipe_id})
-            response.raise_for_status()
-            recipes = response.json()
+        # API Ninjas doesn't support direct recipe lookup by ID
+        raise ValidationError(
+            message_template=ErrorMessages.OPERATION_NOT_SUPPORTED,
+            code=ErrorCode.INVALID_OPERATION,
+            details={
+                "operation": "get_recipe_by_id",
+                "provider": self.source_name,
+                "reason": "API Ninjas does not support direct recipe lookup",
+            },
+        )
 
-            if not recipes:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Recipe not found: {recipe_id}",
-                )
+    def _normalize_recipe(self, raw_recipe: ProviderRecipeData) -> RecipeSearchResult:
+        """Convert API Ninjas recipe data to standard format.
 
-            return self._normalize_recipe(recipes[0])
+        Args:
+            raw_recipe: Raw recipe data from API Ninjas API
 
-        except httpx.HTTPStatusError as e:
-            status_code = e.response.status_code
-            raise HTTPException(
-                status_code=status_code,
-                detail=f"API Ninjas API error: {e!s}",
-            )
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to get recipe: {e!s}",
-            )
-
-    def _normalize_recipe(self, raw_recipe: dict[str, Any]) -> RecipeSearchResult:
-        """Convert API Ninjas recipe data to standard format."""
+        Returns:
+            RecipeSearchResult: Normalized recipe data
+        """
         # Split instructions into steps
         instructions = [step.strip() for step in raw_recipe.get("instructions", "").split(".") if step.strip()]
 

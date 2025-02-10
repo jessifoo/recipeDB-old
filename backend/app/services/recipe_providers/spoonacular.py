@@ -12,8 +12,9 @@ import httpx
 from typing_extensions import override
 
 from app.core.config import settings
-from app.core.constants import ErrorMessages
-from app.core.http_exceptions import ExternalServiceException, ValidationException
+from app.core.error_codes import ErrorCode
+from app.core.error_messages import ErrorMessages
+from app.core.exceptions import BusinessError, DomainError, ValidationError
 from app.schemas.recipe import RecipeList, RecipeSearchResult
 from app.services.recipe_providers.base import RecipeProvider
 
@@ -44,10 +45,14 @@ class SpoonacularProvider(RecipeProvider):
         """Initialize the Spoonacular provider.
 
         Raises:
-            ValueError: If the Spoonacular API key is not configured.
+            ValidationError: If the Spoonacular API key is not configured.
         """
         if not settings.SPOONACULAR_API_KEY:
-            raise ValueError(ErrorMessages.INVALID_CREDENTIALS)
+            raise ValidationError(
+                message_template=ErrorMessages.INVALID_CREDENTIALS,
+                code=ErrorCode.VALIDATION_ERROR,
+                details={"provider": self.source_name},
+            )
 
         super().__init__(api_key=settings.SPOONACULAR_API_KEY)
         self.client = httpx.AsyncClient(
@@ -80,7 +85,9 @@ class SpoonacularProvider(RecipeProvider):
             RecipeList containing search results.
 
         Raises:
-            ExternalServiceException: If the API request fails.
+            DomainError: If the API request fails.
+            ValidationError: If the search parameters are invalid.
+            BusinessError: If no recipes match the filters.
         """
         params: dict[str, Any] = {
             "query": query,
@@ -118,12 +125,15 @@ class SpoonacularProvider(RecipeProvider):
             )
 
         except httpx.HTTPStatusError as e:
-            raise ExternalServiceException(
-                ErrorMessages.EXTERNAL_SERVICE_ERROR.format(service="Spoonacular", details=str(e)),
-                status_code=e.response.status_code,
+            raise DomainError(
+                message_template=ErrorMessages.EXTERNAL_SERVICE_ERROR,
+                code=ErrorCode.EXTERNAL_SERVICE_ERROR,
+                details={"service": "Spoonacular", "status_code": e.response.status_code, "error": str(e)},
             ) from e
         except Exception as e:
-            raise ExternalServiceException(ErrorMessages.RECIPE_SEARCH_FAILED.format(details=str(e))) from e
+            raise DomainError(
+                message_template=ErrorMessages.RECIPE_SEARCH_FAILED, code=ErrorCode.API_ERROR, details={"error": str(e)}
+            ) from e
 
     @override
     async def get_recipe_by_id(self, recipe_id: str) -> RecipeSearchResult:
@@ -136,8 +146,9 @@ class SpoonacularProvider(RecipeProvider):
             RecipeSearchResult containing the recipe details.
 
         Raises:
-            ExternalServiceException: If the API request fails.
-            ValidationException: If the recipe contains allergens.
+            DomainError: If the API request fails.
+            ValidationError: If the recipe ID is invalid.
+            BusinessError: If the recipe contains allergens.
         """
         try:
             response = await self.client.get(
@@ -153,19 +164,34 @@ class SpoonacularProvider(RecipeProvider):
 
             # Check for allergens
             if not self._filter_allergens(recipe):
-                raise ValidationException(ErrorMessages.RECIPE_CONTAINS_ALLERGENS)
+                raise BusinessError(
+                    message_template=ErrorMessages.RECIPE_CONTAINS_ALLERGENS,
+                    code=ErrorCode.ALLERGEN_CONFLICT,
+                    details={"recipe_id": recipe_id, "allergens": self.DEFAULT_ALLERGENS},
+                )
 
             return recipe
 
         except httpx.HTTPStatusError as e:
-            raise ExternalServiceException(
-                ErrorMessages.EXTERNAL_SERVICE_ERROR.format(service="Spoonacular", details=str(e)),
-                status_code=e.response.status_code,
+            if e.response.status_code == 404:
+                raise ValidationError(
+                    message_template=ErrorMessages.RECIPE_NOT_FOUND,
+                    code=ErrorCode.RECIPE_NOT_FOUND,
+                    details={"recipe_id": recipe_id},
+                ) from e
+            raise DomainError(
+                message_template=ErrorMessages.EXTERNAL_SERVICE_ERROR,
+                code=ErrorCode.EXTERNAL_SERVICE_ERROR,
+                details={"service": "Spoonacular", "status_code": e.response.status_code, "error": str(e)},
             ) from e
-        except ValidationException:
+        except BusinessError:
             raise
         except Exception as e:
-            raise ExternalServiceException(ErrorMessages.RECIPE_FETCH_FAILED.format(details=str(e))) from e
+            raise DomainError(
+                message_template=ErrorMessages.RECIPE_FETCH_FAILED,
+                code=ErrorCode.API_ERROR,
+                details={"recipe_id": recipe_id, "error": str(e)},
+            ) from e
 
     def _normalize_recipe(self, raw_recipe: dict[str, Any]) -> RecipeSearchResult:
         """Convert Spoonacular recipe data to standard format.

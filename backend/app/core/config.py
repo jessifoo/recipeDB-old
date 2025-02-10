@@ -1,120 +1,104 @@
-"""Application configuration."""
+"""Application configuration.
+
+This module provides a single source of truth for all application configuration,
+combining settings from YAML files and environment variables.
+"""
 
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import Any
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import yaml
+from pydantic import BaseSettings, Field, validator
+from pydantic_settings import SettingsConfigDict
 
-if TYPE_CHECKING:
-    from pydantic import ValidationInfo
-
-
-class ConfigurationError(Exception):
-    """Raised when there is a configuration error."""
+from app.core.error_codes import ErrorCode
+from app.core.error_messages import ErrorMessages
+from app.core.exceptions import ConfigurationError
 
 
 class Settings(BaseSettings):
-    """Application settings."""
+    """Application settings combining YAML config and environment variables."""
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=True,
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True)
 
-    # FastAPI
-    FASTAPI_ENV: str = Field("development", description="FastAPI environment (development/production)")
-    SECRET_KEY: str = Field("dev_secret_key", description="Secret key for JWT token generation")
-    PROJECT_NAME: str = Field("Recipe Database API", description="Project name")
-    API_V1_STR: str = Field("/api/v1", description="API version 1 prefix")
-    BACKEND_CORS_ORIGINS: list[str] = Field(
-        default_factory=lambda: ["http://localhost:3000"],
-        description="List of origins that are allowed to make cross-site HTTP requests",
-    )
+    # Environment
+    ENVIRONMENT: str = Field("development", description="Application environment")
 
-    # Database
-    POSTGRES_SERVER: str = Field("localhost", description="PostgreSQL server hostname")
-    POSTGRES_USER: str = Field("postgres", description="PostgreSQL username")
-    POSTGRES_PASSWORD: str = Field("password", description="PostgreSQL password")
-    POSTGRES_DB: str = Field("recipe_db", description="PostgreSQL database name")
-    SQLALCHEMY_DATABASE_URI: str | None = None
+    # Core settings loaded from YAML
+    _config: dict[str, Any] = {}
 
-    # Redis
-    REDIS_URL: str = Field("redis://localhost", description="Redis URL")
+    # Required environment variables (secrets, etc.)
+    POSTGRES_PASSWORD: str = Field(..., description="PostgreSQL password")
+    SECRET_KEY: str = Field(..., description="Secret key for JWT")
+    SPOONACULAR_API_KEY: str = Field(..., description="Spoonacular API key")
 
-    # Logging
-    LOG_LEVEL: str = Field("INFO", description="Logging level")
+    @validator("ENVIRONMENT")
+    def validate_environment(self, v: str) -> str:
+        """Validate environment name and load corresponding config."""
+        if v not in {"development", "production", "test"}:
+            raise ConfigurationError(
+                message_template=ErrorMessages.CONFIG_INVALID_VALUE,
+                code=ErrorCode.VALIDATION_ERROR,
+                details={"environment": v},
+            )
+        return v
 
-    # External APIs
-    SPOONACULAR_API_KEY: str = Field("dummy_key", description="Spoonacular API key")
-    EDAMAM_APP_ID: str = Field("dummy_id", description="Edamam API app ID")
-    EDAMAM_APP_KEY: str = Field("dummy_key", description="Edamam API key")
-    API_NINJAS_API_KEY: str = Field("dummy_key", description="API Ninjas API key")
-    TASTY_API_KEY: str = Field("dummy_key", description="Tasty API key")
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize settings and load YAML config."""
+        super().__init__(**kwargs)
+        self._load_yaml_config()
 
-    # Recipe Provider Settings
-    DEFAULT_RECIPE_PROVIDER: str = Field("local", description="Default recipe provider to use")
-    ENABLE_EXTERNAL_PROVIDERS: bool = Field(False, description="Enable external recipe providers")
+    def _load_yaml_config(self) -> None:
+        """Load configuration from YAML files."""
+        try:
+            config_dir = Path(__file__).parent.parent.parent / "config"
 
-    # Users
-    FIRST_SUPERUSER: str = Field("admin@example.com", description="First superuser email")
-    FIRST_SUPERUSER_PASSWORD: str = Field("admin", description="First superuser password")
+            # Load default config
+            with (config_dir / "default.yaml").open() as f:
+                self._config = yaml.safe_load(f)
+
+            # Load environment overrides
+            env_config = config_dir / f"{self.ENVIRONMENT}.yaml"
+            if env_config.exists():
+                with env_config.open() as f:
+                    self._config.update(yaml.safe_load(f))
+
+        except Exception as e:
+            raise ConfigurationError(
+                message_template=ErrorMessages.CONFIG_LOAD_FAILED,
+                code=ErrorCode.CONFIGURATION_ERROR,
+                details={"error": str(e)},
+            )
 
     @property
-    def database_url(self) -> str | None:
-        """Get the database URL."""
-        return self.SQLALCHEMY_DATABASE_URI
+    def allergens(self) -> list[dict[str, Any]]:
+        """Get allergen configuration."""
+        return self._config.get("allergens", [])
 
-    def assemble_db_connection(
-        self,
-        v: str | None,
-        info: ValidationInfo,
-    ) -> str | None:
-        """Assemble database connection URL.
+    @property
+    def database_url(self) -> str:
+        """Get database URL with credentials."""
+        db_config = self._config.get("database", {})
+        return (
+            f"postgresql+asyncpg://{db_config.get('user')}:{self.POSTGRES_PASSWORD}"
+            f"@{db_config.get('host')}/{db_config.get('name')}"
+        )
 
-        Args:
-            v: Current value
-            info: Validation context
-
-        Returns:
-            Assembled database URL
-        """
-        if isinstance(v, str):
-            return v
-
-        values = info.data
-        return f"postgresql+asyncpg://{values.get('POSTGRES_USER')}:{values.get('POSTGRES_PASSWORD')}@{values.get('POSTGRES_SERVER')}/{values.get('POSTGRES_DB')}"
-
-    def assemble_cors_origins(
-        self,
-        v: str | list[str] | None,
-        info: ValidationInfo,
-    ) -> list[str]:
-        """Assemble CORS origins.
-
-        Args:
-            v: Current value
-            info: Validation context
-
-        Returns:
-            List of CORS origins
-        """
-        if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",")]
-        if isinstance(v, list):
-            return v
-        return []
+    @property
+    def api_config(self) -> dict[str, Any]:
+        """Get API configuration."""
+        return self._config.get("api", {})
 
 
 @lru_cache
 def get_settings() -> Settings:
-    """Get application settings.
+    """Get application settings singleton.
 
     Returns:
-        Application settings
+        Settings: Application settings instance
     """
     return Settings()
 

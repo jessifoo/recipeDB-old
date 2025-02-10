@@ -1,0 +1,14 @@
+# Development environment configuration
+# Overrides default.yaml for development environment
+
+database:
+  host: localhost
+  port: 5432
+  name: recipe_db_dev
+
+api:
+  cors_origins:
+    - http://localhost:3000
+    - http://localhost:8000
+    - http://127.0.0.1:3000
+    - http://127.0.0.1:8000

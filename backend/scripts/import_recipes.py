@@ -5,12 +5,12 @@ from __future__ import annotations
 import asyncio
 import csv
 import logging
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import Path
 from sqlalchemy import delete
 
 from app.db.base import get_db
@@ -99,14 +99,14 @@ def parse_recipe_data(row: dict[str, str]) -> dict[str, Any] | None:
             "prep_time": prep_time,
             "cook_time": cook_time,
             "cooking_method": normalize_cooking_method(row["cook method"]),
-            "date_added": datetime.utcnow(),
+            "date_added": datetime.now(timezone.utc),
             **detect_allergens_from_title(row["Recipe Title"]),
         }
     except (ValueError, KeyError) as e:
         logger.warning(f"Error parsing recipe: {e}")
+
+
         return None
-
-
 async def import_recipes(csv_path: str) -> None:
     """Import recipes from CSV file."""
     async with get_db() as db:
