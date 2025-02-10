@@ -17,3 +17,7 @@ jobs:
           check_mode: false # optional, default is false
           only_changed_files: false # optional, default is false
           base_commit: "" # optional, default is
+  
+      - name: OpenCommit — improve commits with AI 🧙
+        uses: di-sukharev/opencommit@github-action-v1.0.2
+  
