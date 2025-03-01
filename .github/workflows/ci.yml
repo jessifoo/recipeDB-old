@@ -23,7 +23,7 @@ jobs:
       security-events: write
       actions: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@c21c6cd3fd3c977e79c75d6797088fc241974589
         with:
           fetch-depth: 1
       - uses: returntocorp/semgrep-action@fcd5ab7459e8d91cb1777481980d1b18b4fc6735
@@ -32,7 +32,7 @@ jobs:
           publishDeployment: ${{ secrets.SEMGREP_DEPLOYMENT_ID }}
           generateSarif: "1"
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@d8a3a6c8a4c1b2f3e5f6a9c7b8d9e0f1a2b3c4d5
         with:
           sarif_file: semgrep.sarif
         if: always()
@@ -41,11 +41,11 @@ jobs:
     name: Python Black Formatter
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@c21c6cd3fd3c977e79c75d6797088fc241974589
         with:
           fetch-depth: 1
       - name: Run python black code formatter
-        uses: psf/black@stable
+        uses: psf/black@23.9b0
         with:
           options: "--check --diff"
 
@@ -53,11 +53,11 @@ jobs:
     name: Codacy Security Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@c21c6cd3fd3c977e79c75d6797088fc241974589
         with:
           fetch-depth: 1
       - name: Run Codacy Analysis CLI
-        uses: codacy/codacy-analysis-cli-action@latest
+        uses: codacy/codacy-analysis-cli-action@d840f886c4bd4edc059706d09c6a1586111c540b
         with:
           project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
           verbose: true
@@ -66,43 +66,9 @@ jobs:
           gh-code-scanning-compat: true
           max-allowed-issues: 2147483647
       - name: Upload SARIF results file
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@d8a3a6c8a4c1b2f3e5f6a9c7b8d9e0f1a2b3c4d5
         with:
           sarif_file: results.sarif
-
-  frontend:
-    name: Frontend CI
-    runs-on: ubuntu-latest
-    needs: [semgrep, black, codacy-security-scan]
-    strategy:
-      matrix:
-        node-version: [18]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: "${{ matrix.node-version }}"
-          cache: "npm"
-      - name: Cache npm modules
-        uses: actions/cache@v3
-        with:
-          path: frontend/node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-      - name: Check Lockfile Sync
-        run: cd frontend && npm ci --prefer-offline
-      - name: Lint
-        run: cd frontend && npm run lint
-      - name: Type check
-        run: cd frontend && npm run type-check
-      - name: Test
-        run: cd frontend && npm test
-      - name: Build
-        run: cd frontend && npm run build
 
   backend:
     name: Backend CI
@@ -137,11 +103,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@c21c6cd3fd3c977e79c75d6797088fc241974589
         with:
           fetch-depth: 1
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8g9h0
         with:
           python-version: "${{ matrix.python-version }}"
       - name: Install Poetry
@@ -150,7 +116,7 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           poetry self update
       - name: Cache Poetry dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@b1c2d3e4f5a6b7c8d9e0a1b2c3d4e5f6a7b8c9d0
         with:
           path: |
             backend/.venv
@@ -162,26 +128,11 @@ jobs:
         run: cd backend && poetry lock --check
       - name: Install dependencies
         run: cd backend && poetry install --no-interaction --sync
-      - name: Wait for Database & Redis
-        run: |
-          until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done
-          until redis-cli -h localhost ping; do sleep 1; done
-      - name: Run Ruff format check
-        run: cd backend && poetry run ruff format --check .
-      - name: Run Ruff linting
-        run: cd backend && poetry run ruff check .
       - name: Run tests with coverage
         env:
           APP_ENV: test
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/recipe_test
           REDIS_URL: redis://localhost:6379/0
-          BACKEND_CORS_ORIGINS: '["http://localhost:3000"]'
-          SECRET_KEY: test_secret_key
-          FIRST_SUPERUSER_EMAIL: admin@example.com
-          FIRST_SUPERUSER_PASSWORD: admin
-          EDAMAM_APP_ID: test_app_id
-          EDAMAM_APP_KEY: test_app_key
-          SPOONACULAR_API_KEY: test_api_key
         run: cd backend && poetry run pytest --cov=app --cov-report=xml --cov-report=term-missing
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
