@@ -1,45 +1,116 @@
-name: CI/CD
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main]
+    branches: ["main"]
   pull_request:
-    branches: [main]
+    branches: ["main"]
+  schedule:
+    - cron: '28 6 * * 5'
+    - cron: '37 0 * * 4'
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
 
 jobs:
-  frontend:
+  semgrep:
+    name: Semgrep Scan
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: returntocorp/semgrep-action@fcd5ab7459e8d91cb1777481980d1b18b4fc6735
+        with:
+          publishToken: ${{ secrets.SEMGREP_APP_TOKEN }}
+          publishDeployment: ${{ secrets.SEMGREP_DEPLOYMENT_ID }}
+          generateSarif: "1"
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+        if: always()
 
+  black:
+    name: Python Black Formatter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Run python black code formatter
+        uses: psf/black@stable
+        with:
+          options: "--check --diff"
+
+  codacy-security-scan:
+    name: Codacy Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Run Codacy Analysis CLI
+        uses: codacy/codacy-analysis-cli-action@latest
+        with:
+          project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+          verbose: true
+          output: results.sarif
+          format: sarif
+          gh-code-scanning-compat: true
+          max-allowed-issues: 2147483647
+      - name: Upload SARIF results file
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+
+  frontend:
+    name: Frontend CI
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: "18"
+          node-version: "${{ matrix.node-version }}"
           cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
+      - name: Cache npm modules
+        uses: actions/cache@v3
+        with:
+          path: frontend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
       - name: Install dependencies
         run: cd frontend && npm ci
-
       - name: Lint
         run: cd frontend && npm run lint
-
       - name: Type check
         run: cd frontend && npm run type-check
-
       - name: Test
         run: cd frontend && npm test
-
       - name: Build
         run: cd frontend && npm run build
 
   backend:
+    name: Backend CI
     runs-on: ubuntu-latest
     env:
       POETRY_VERSION: "1.7.1"
-
+    strategy:
+      matrix:
+        python-version: ["3.11"]
     services:
       postgres:
         image: postgres:15
@@ -54,7 +125,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
       redis:
         image: redis:7
         ports:
@@ -64,50 +134,33 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     steps:
-      - uses: actions/checkout@v3
-
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
-
+          python-version: "${{ matrix.python-version }}"
       - name: Install Poetry
         run: |
           curl -sSL https://install.python-poetry.org | python3 - --version ${{ env.POETRY_VERSION }}
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Configure Poetry
-        run: |
-          poetry config virtualenvs.create true
-          poetry config virtualenvs.in-project true
-
       - name: Cache Poetry dependencies
         uses: actions/cache@v3
         with:
-          path: |
-            backend/.venv
-            ~/.cache/pypoetry
+          path: ~/.cache/pypoetry
           key: ${{ runner.os }}-poetry-${{ hashFiles('backend/poetry.lock') }}
           restore-keys: |
             ${{ runner.os }}-poetry-
-
       - name: Install dependencies
         run: |
           cd backend
           poetry install --no-interaction --with dev
-
       - name: Run Ruff format check
-        run: |
-          cd backend
-          poetry run ruff format --check .
-
+        run: cd backend && poetry run ruff format --check .
       - name: Run Ruff linting
-        run: |
-          cd backend
-          poetry run ruff check .
-
+        run: cd backend && poetry run ruff check .
       - name: Run tests with coverage
         env:
           APP_ENV: test
@@ -123,10 +176,21 @@ jobs:
         run: |
           cd backend
           poetry run pytest --cov=app --cov-report=xml --cov-report=term-missing
-
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
           file: backend/coverage.xml
           flags: backend
           name: backend-coverage
+      - name: Run OWASP ZAP Security Scan (Optional)
+        if: ${{ env.ENABLE_ZAP == 'true' }}
+        uses: zaproxy/action-full-scan@v0.6.0
+        with:
+          target: 'http://localhost:8000'
+      - name: Run Trivy Security Scan
+        if: ${{ env.ENABLE_TRIVY == 'true' }}
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          exit-code: '1'
+          ignore-unfixed: true
