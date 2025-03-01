@@ -57,7 +57,7 @@ jobs:
         with:
           fetch-depth: 1
       - name: Run Codacy Analysis CLI
-        uses: codacy/codacy-analysis-cli-action@v3
+        uses: codacy/codacy-analysis-cli-action@v3.0.0
         with:
           project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
           verbose: true
