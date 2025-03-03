@@ -5,9 +5,14 @@ from __future__ import annotations
 import os
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+
+sentry_sdk.init(
+    dsn="https://1b7918ad1ae2fa53f9e00a676e7ef195@o4508765460430848.ingest.us.sentry.io/4508765464625152",
+    # Add data like request headers and IP for users,
+    # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+    send_default_pii=True,
+)
+
 
 # Load environment variables
 load_dotenv()

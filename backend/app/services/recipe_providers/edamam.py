@@ -7,7 +7,9 @@ from typing import Any
 import httpx
 
 from app.core.config import settings
-from app.core.exceptions import ExternalServiceError, RecipeFilterError
+from app.core.error_codes import ErrorCode
+from app.core.error_messages import ErrorMessages
+from app.core.exceptions import BusinessError, DomainError, ValidationError
 from app.schemas.recipe import RecipeList, RecipeSearchResult
 
 from .base import RecipeProvider
@@ -19,8 +21,18 @@ class EdamamProvider(RecipeProvider):
     BASE_URL = "https://api.edamam.com"
 
     def __init__(self) -> None:
-        """Initialize the Edamam provider."""
+        """Initialize the Edamam provider.
+
+        Raises:
+            ValidationError: If API credentials are not configured.
+        """
         super().__init__()
+        if not settings.EDAMAM_APP_ID or not settings.EDAMAM_APP_KEY:
+            raise ValidationError(
+                message_template=ErrorMessages.INVALID_CREDENTIALS,
+                code=ErrorCode.VALIDATION_ERROR,
+                details={"provider": self.source_name},
+            )
         self.app_id = settings.EDAMAM_APP_ID
         self.app_key = settings.EDAMAM_APP_KEY
         self.client = httpx.AsyncClient(base_url=self.BASE_URL, timeout=30.0)
@@ -35,7 +47,25 @@ class EdamamProvider(RecipeProvider):
         exclude: list[str] | None = None,
         max_time: int | None = None,
     ) -> RecipeList:
-        """Search for recipes using the Edamam API."""
+        """Search for recipes using the Edamam API.
+
+        Args:
+            query: Search query string
+            offset: Number of results to skip
+            limit: Maximum number of results to return
+            cuisine: Filter by cuisine type
+            diet: Filter by diet type
+            exclude: List of ingredients to exclude
+            max_time: Maximum cooking time in minutes
+
+        Returns:
+            RecipeList: List of recipes matching the search criteria
+
+        Raises:
+            DomainError: If the API request fails
+            ValidationError: If the search parameters are invalid
+            BusinessError: If no recipes match the filters
+        """
         # Build health labels for allergen filtering
         health_labels = ["dairy-free", "egg-free"]
 
@@ -72,12 +102,30 @@ class EdamamProvider(RecipeProvider):
             return RecipeList(total=data.get("count", len(results)), results=results[:limit], source=self.source_name)
 
         except httpx.HTTPStatusError as e:
-            raise ExternalServiceError(message=f"Edamam API error: {e!s}", status_code=e.response.status_code)
+            raise DomainError(
+                message_template=ErrorMessages.EXTERNAL_SERVICE_ERROR,
+                code=ErrorCode.EXTERNAL_SERVICE_ERROR,
+                details={"service": "Edamam", "status_code": e.response.status_code, "error": str(e)},
+            ) from e
         except Exception as e:
-            raise ExternalServiceError(message=f"Failed to search recipes: {e!s}")
+            raise DomainError(
+                message_template=ErrorMessages.RECIPE_SEARCH_FAILED, code=ErrorCode.API_ERROR, details={"error": str(e)}
+            ) from e
 
     async def get_recipe_by_id(self, recipe_id: str) -> RecipeSearchResult:
-        """Get recipe details by ID."""
+        """Get recipe details by ID.
+
+        Args:
+            recipe_id: Recipe ID from the provider
+
+        Returns:
+            RecipeSearchResult: Detailed recipe information
+
+        Raises:
+            DomainError: If the API request fails
+            ValidationError: If the recipe ID is invalid
+            BusinessError: If the recipe contains allergens
+        """
         try:
             # Edamam uses URLs as IDs, so we need to decode it
             response = await self.client.get(
@@ -91,16 +139,34 @@ class EdamamProvider(RecipeProvider):
 
             # Check for allergens
             if not self._filter_allergens(recipe):
-                raise RecipeFilterError(message="Recipe contains allergens")
+                raise BusinessError(
+                    message_template=ErrorMessages.RECIPE_CONTAINS_ALLERGENS,
+                    code=ErrorCode.ALLERGEN_CONFLICT,
+                    details={"recipe_id": recipe_id, "allergens": self.DEFAULT_ALLERGENS},
+                )
 
             return recipe
 
         except httpx.HTTPStatusError as e:
-            raise ExternalServiceError(message=f"Edamam API error: {e!s}", status_code=e.response.status_code)
-        except RecipeFilterError:
+            if e.response.status_code == 404:
+                raise ValidationError(
+                    message_template=ErrorMessages.RECIPE_NOT_FOUND,
+                    code=ErrorCode.RECIPE_NOT_FOUND,
+                    details={"recipe_id": recipe_id},
+                ) from e
+            raise DomainError(
+                message_template=ErrorMessages.EXTERNAL_SERVICE_ERROR,
+                code=ErrorCode.EXTERNAL_SERVICE_ERROR,
+                details={"service": "Edamam", "status_code": e.response.status_code, "error": str(e)},
+            ) from e
+        except BusinessError:
             raise
         except Exception as e:
-            raise ExternalServiceError(message=f"Failed to get recipe: {e!s}")
+            raise DomainError(
+                message_template=ErrorMessages.RECIPE_FETCH_FAILED,
+                code=ErrorCode.API_ERROR,
+                details={"recipe_id": recipe_id, "error": str(e)},
+            ) from e
 
     def _normalize_recipe(self, raw_recipe: dict[str, Any]) -> RecipeSearchResult:
         """Convert Edamam recipe data to standard format."""

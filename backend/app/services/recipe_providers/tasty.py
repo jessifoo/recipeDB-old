@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from http import HTTPStatus
-from typing import Any
+from typing import Any, cast
 
 import httpx
-from fastapi import HTTPException
 
 from app.core.config import settings
-from app.core.constants import ErrorMessages
+from app.core.error_codes import ErrorCode
+from app.core.error_messages import ErrorMessages
+from app.core.exceptions import BusinessError, DomainError, ValidationError
 from app.schemas.recipe import RecipeList, RecipeSearchResult
-from app.services.recipe_providers.base import RecipeProvider
+from app.services.recipe_providers.base import ProviderRecipeData, RecipeProvider
 
 
 class TastyProvider(RecipeProvider):
@@ -20,7 +20,18 @@ class TastyProvider(RecipeProvider):
     BASE_URL = "https://tasty.p.rapidapi.com"
 
     def __init__(self) -> None:
-        """Initialize the Tasty provider."""
+        """Initialize the Tasty provider.
+
+        Raises:
+            ValidationError: If API key is not configured.
+        """
+        if not settings.TASTY_API_KEY:
+            raise ValidationError(
+                message_template=ErrorMessages.INVALID_CREDENTIALS,
+                code=ErrorCode.VALIDATION_ERROR,
+                details={"provider": "tasty"},
+            )
+
         super().__init__(api_key=settings.TASTY_API_KEY)
         self.client = httpx.AsyncClient(
             base_url=self.BASE_URL,
@@ -40,7 +51,25 @@ class TastyProvider(RecipeProvider):
         exclude: list[str] | None = None,
         max_time: int | None = None,
     ) -> RecipeList:
-        """Search for recipes using the Tasty API."""
+        """Search for recipes using the Tasty API.
+
+        Args:
+            query: Search query string
+            offset: Number of results to skip
+            limit: Maximum number of results to return
+            cuisine: Filter by cuisine type
+            diet: Filter by diet type
+            exclude: List of ingredients to exclude
+            max_time: Maximum cooking time in minutes
+
+        Returns:
+            RecipeList: List of recipes matching the search criteria
+
+        Raises:
+            DomainError: If the API request fails
+            ValidationError: If the search parameters are invalid
+            BusinessError: If no recipes match the filters
+        """
         params: dict[str, Any] = {
             "q": query,
             "from": offset,
@@ -53,7 +82,7 @@ class TastyProvider(RecipeProvider):
             response = await self.client.get("/recipes/list", params=params)
             response.raise_for_status()
             data = response.json()
-            recipes = data.get("results", [])
+            recipes = cast(list[ProviderRecipeData], data.get("results", []))
 
             # Convert recipes to standard format
             results = [self._normalize_recipe(recipe) for recipe in recipes]
@@ -78,38 +107,77 @@ class TastyProvider(RecipeProvider):
             return RecipeList(total=data.get("count", len(results)), results=results[:limit], source=self.source_name)
 
         except httpx.HTTPStatusError as e:
-            raise HTTPException(
-                status_code=e.response.status_code,
-                detail=ErrorMessages.EXTERNAL_SERVICE_ERROR.format(service="Tasty", details=str(e)),
+            raise DomainError(
+                message_template=ErrorMessages.EXTERNAL_SERVICE_ERROR,
+                code=ErrorCode.EXTERNAL_SERVICE_ERROR,
+                details={"service": "Tasty", "status_code": e.response.status_code, "error": str(e)},
             ) from e
         except Exception as e:
-            raise HTTPException(
-                status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-                detail=ErrorMessages.RECIPE_SEARCH_FAILED.format(details=str(e)),
+            raise DomainError(
+                message_template=ErrorMessages.RECIPE_SEARCH_FAILED, code=ErrorCode.API_ERROR, details={"error": str(e)}
             ) from e
 
     async def get_recipe_by_id(self, recipe_id: str) -> RecipeSearchResult:
-        """Get recipe details by ID."""
+        """Get recipe details by ID.
+
+        Args:
+            recipe_id: Recipe ID from the provider
+
+        Returns:
+            RecipeSearchResult: Detailed recipe information
+
+        Raises:
+            DomainError: If the API request fails
+            ValidationError: If the recipe ID is invalid
+            BusinessError: If the recipe contains allergens
+        """
         try:
             response = await self.client.get("/recipes/get-more-info", params={"id": recipe_id})
             response.raise_for_status()
-            recipe_data = response.json()
+            recipe_data = cast(ProviderRecipeData, response.json())
 
-            return self._normalize_recipe(recipe_data)
+            recipe = self._normalize_recipe(recipe_data)
+
+            # Check for allergens
+            if not self._filter_allergens(recipe):
+                raise BusinessError(
+                    message_template=ErrorMessages.RECIPE_CONTAINS_ALLERGENS,
+                    code=ErrorCode.ALLERGEN_CONFLICT,
+                    details={"recipe_id": recipe_id, "allergens": self.DEFAULT_ALLERGENS},
+                )
+
+            return recipe
 
         except httpx.HTTPStatusError as e:
-            raise HTTPException(
-                status_code=e.response.status_code,
-                detail=ErrorMessages.EXTERNAL_SERVICE_ERROR.format(service="Tasty", details=str(e)),
+            if e.response.status_code == 404:
+                raise ValidationError(
+                    message_template=ErrorMessages.RECIPE_NOT_FOUND,
+                    code=ErrorCode.RECIPE_NOT_FOUND,
+                    details={"recipe_id": recipe_id},
+                ) from e
+            raise DomainError(
+                message_template=ErrorMessages.EXTERNAL_SERVICE_ERROR,
+                code=ErrorCode.EXTERNAL_SERVICE_ERROR,
+                details={"service": "Tasty", "status_code": e.response.status_code, "error": str(e)},
             ) from e
+        except BusinessError:
+            raise
         except Exception as e:
-            raise HTTPException(
-                status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-                detail=ErrorMessages.RECIPE_FETCH_FAILED.format(details=str(e)),
+            raise DomainError(
+                message_template=ErrorMessages.RECIPE_FETCH_FAILED,
+                code=ErrorCode.API_ERROR,
+                details={"recipe_id": recipe_id, "error": str(e)},
             ) from e
 
-    def _normalize_recipe(self, raw_recipe: dict[str, Any]) -> RecipeSearchResult:
-        """Convert Tasty recipe data to standard format."""
+    def _normalize_recipe(self, raw_recipe: ProviderRecipeData) -> RecipeSearchResult:
+        """Convert Tasty recipe data to standard format.
+
+        Args:
+            raw_recipe: Raw recipe data from Tasty API
+
+        Returns:
+            RecipeSearchResult: Normalized recipe data
+        """
         # Extract instructions from components and instructions
         instructions: list[str] = []
         for section in raw_recipe.get("instructions", []):

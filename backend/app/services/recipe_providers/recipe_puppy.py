@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import httpx
-from fastapi import HTTPException
 
+from app.core.error_codes import ErrorCode
+from app.core.error_messages import ErrorMessages
+from app.core.exceptions import DomainError, ValidationError
 from app.schemas.recipe import RecipeList, RecipeSearchResult
-
-from .base import RecipeProvider
+from app.services.recipe_providers.base import ProviderRecipeData, RecipeProvider
 
 
 class RecipePuppyProvider(RecipeProvider):
@@ -20,10 +21,7 @@ class RecipePuppyProvider(RecipeProvider):
     def __init__(self) -> None:
         """Initialize Recipe Puppy provider."""
         super().__init__()
-        self.client = httpx.AsyncClient(
-            base_url=self.BASE_URL,
-            timeout=30.0,
-        )
+        self.client = httpx.AsyncClient(base_url=self.BASE_URL, timeout=30.0)
 
     async def search_recipes(
         self,
@@ -35,14 +33,29 @@ class RecipePuppyProvider(RecipeProvider):
         exclude: list[str] | None = None,
         max_time: int | None = None,
     ) -> RecipeList:
-        """Search for recipes using Recipe Puppy API."""
+        """Search for recipes using Recipe Puppy API.
+
+        Args:
+            query: Search query string
+            offset: Number of results to skip
+            limit: Maximum number of results to return
+            cuisine: Filter by cuisine type
+            diet: Filter by diet type
+            exclude: List of ingredients to exclude
+            max_time: Maximum cooking time in minutes
+
+        Returns:
+            RecipeList: List of recipes matching the search criteria
+
+        Raises:
+            DomainError: If the API request fails
+            ValidationError: If the search parameters are invalid
+            BusinessError: If no recipes match the filters
+        """
         # Calculate page number (Recipe Puppy uses 10 results per page)
         page = (offset // 10) + 1
 
-        params: dict[str, Any] = {
-            "q": query,
-            "p": page,
-        }
+        params: dict[str, Any] = {"q": query, "p": page}
 
         # Add ingredients to exclude
         if exclude:
@@ -52,7 +65,7 @@ class RecipePuppyProvider(RecipeProvider):
             response = await self.client.get("/", params=params)
             response.raise_for_status()
             data = response.json()
-            recipes = data.get("results", [])
+            recipes = cast(list[ProviderRecipeData], data.get("results", []))
 
             # Convert recipes to standard format
             results = [self._normalize_recipe(recipe) for recipe in recipes]
@@ -79,62 +92,51 @@ class RecipePuppyProvider(RecipeProvider):
             )
 
         except httpx.HTTPStatusError as e:
-            status_code = e.response.status_code
-            raise HTTPException(
-                status_code=status_code,
-                detail=f"Recipe Puppy API error: {e!s}",
-            )
+            raise DomainError(
+                message_template=ErrorMessages.EXTERNAL_SERVICE_ERROR,
+                code=ErrorCode.EXTERNAL_SERVICE_ERROR,
+                details={"service": "Recipe Puppy", "status_code": e.response.status_code, "error": str(e)},
+            ) from e
         except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to search recipes: {e!s}",
-            )
+            raise DomainError(
+                message_template=ErrorMessages.RECIPE_SEARCH_FAILED, code=ErrorCode.API_ERROR, details={"error": str(e)}
+            ) from e
 
     async def get_recipe_by_id(self, recipe_id: str) -> RecipeSearchResult:
         """Get recipe details by ID.
 
-        Note: Recipe Puppy doesn't support retrieving recipes by ID,
-        so we'll search by title and return the first match.
+        Args:
+            recipe_id: Recipe ID from the provider
+
+        Returns:
+            RecipeSearchResult: Detailed recipe information
+
+        Raises:
+            DomainError: If the API request fails
+            ValidationError: If the recipe ID is invalid
+            BusinessError: If the recipe contains allergens
         """
-        try:
-            response = await self.client.get("/", params={"q": recipe_id})
-            response.raise_for_status()
-            data = response.json()
-            recipes = data.get("results", [])
+        # Recipe Puppy doesn't support direct recipe lookup by ID
+        # We would need to search and filter by our generated ID
+        raise ValidationError(
+            message_template=ErrorMessages.OPERATION_NOT_SUPPORTED,
+            code=ErrorCode.INVALID_OPERATION,
+            details={
+                "operation": "get_recipe_by_id",
+                "provider": self.source_name,
+                "reason": "Recipe Puppy API does not support direct recipe lookup",
+            },
+        )
 
-            if not recipes:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Recipe not found: {recipe_id}",
-                )
+    def _normalize_recipe(self, raw_recipe: ProviderRecipeData) -> RecipeSearchResult:
+        """Convert Recipe Puppy data to standard format.
 
-            recipe = self._normalize_recipe(recipes[0])
+        Args:
+            raw_recipe: Raw recipe data from Recipe Puppy API
 
-            # Check for allergens
-            if not self._filter_allergens(recipe):
-                raise HTTPException(
-                    status_code=404,
-                    detail="Recipe contains allergens",
-                )
-
-            return recipe
-
-        except httpx.HTTPStatusError as e:
-            status_code = e.response.status_code
-            raise HTTPException(
-                status_code=status_code,
-                detail=f"Recipe Puppy API error: {e!s}",
-            )
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to get recipe: {e!s}",
-            )
-
-    def _normalize_recipe(self, raw_recipe: dict[str, Any]) -> RecipeSearchResult:
-        """Convert Recipe Puppy data to standard format."""
+        Returns:
+            RecipeSearchResult: Normalized recipe data
+        """
         # Split ingredients string into list
         ingredients = [ing.strip() for ing in raw_recipe.get("ingredients", "").split(",") if ing.strip()]
 

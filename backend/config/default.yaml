@@ -1,0 +1,162 @@
+# Default configuration for Recipe Database API
+# This file serves as the base configuration and can be overridden by environment-specific files
+
+# Database configuration
+database:
+  host: localhost
+  port: 5432
+  name: recipe_db
+  user: postgres
+  schema: public
+
+# API configuration
+api:
+  title: Recipe Database API
+  version: 0.1.0
+  prefix: /api/v1
+  cors_origins:
+    - http://localhost:3000
+
+# Allergen definitions
+allergens:
+  - name: dairy
+    keywords:
+      - milk
+      - cream
+      - cheese
+      - butter
+      - yogurt
+      - whey
+      - casein
+      - lactose
+      - ghee
+      - curd
+      - kefir
+      - buttermilk
+      - custard
+      - pudding
+      - ice cream
+      - gelato
+
+  - name: soy
+    keywords:
+      - soy
+      - soya
+      - tofu
+      - tempeh
+      - edamame
+      - miso
+      - natto
+      - tamari
+      - shoyu
+      - lecithin
+      - textured vegetable protein
+      - tvp
+      - soybean
+
+  - name: egg
+    keywords:
+      - egg
+      - eggs
+      - albumin
+      - meringue
+      - mayonnaise
+      - eggnog
+      - lysozyme
+      - globulin
+      - ovomucin
+      - ovalbumin
+      - surimi
+
+  - name: sunflower
+    keywords:
+      - sunflower
+      - sunflower seeds
+      - sunflower oil
+      - sunflower lecithin
+      - sunflower butter
+      - sunflower protein
+
+  - name: fig
+    keywords:
+      - fig
+      - figs
+      - fig jam
+      - fig paste
+      - fig extract
+
+  - name: peanut
+    keywords:
+      - peanut
+      - peanuts
+      - groundnut
+      - arachis
+      - goober
+      - monkey nut
+      - peanut butter
+      - peanut oil
+      - beer nuts
+
+  - name: tree_nuts
+    keywords:
+      - almond
+      - cashew
+      - walnut
+      - pecan
+      - brazil nut
+      - macadamia
+      - pistachio
+      - hazelnut
+      - pine nut
+      - chestnut
+      - nutmeg
+      - marzipan
+
+  - name: shellfish
+    keywords:
+      - shrimp
+      - crab
+      - lobster
+      - crawfish
+      - prawn
+      - crayfish
+      - langoustine
+      - scampi
+      - krill
+      - shellfish
+
+  - name: fish
+    keywords:
+      - fish
+      - salmon
+      - tuna
+      - cod
+      - halibut
+      - tilapia
+      - sardine
+      - anchovy
+      - mackerel
+      - fish sauce
+      - worcestershire
+      - caesar
+      - caviar
+      - roe
+
+  - name: gluten
+    keywords:
+      - wheat
+      - rye
+      - barley
+      - oats
+      - spelt
+      - kamut
+      - triticale
+      - seitan
+      - malt
+      - brewer's yeast
+      - bread
+      - pasta
+      - couscous
+      - bulgur
+      - semolina
+      - durum

@@ -1,0 +1,12 @@
+# Production environment configuration
+# Overrides default.yaml for production environment
+
+database:
+  host: db.production.example.com
+  port: 5432
+  name: recipe_db_prod
+
+api:
+  cors_origins:
+    - https://recipe.example.com
+    - https://api.recipe.example.com

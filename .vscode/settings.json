@@ -21,6 +21,13 @@
   "python.createEnvironment.contentButton": "hide",
   "python.languageServer": "Pylance",
 
+  // Amazon Q settings
+  "amazonq.ignore": {
+    "python": {
+      "docstrings": true
+    }
+  },
+
   // Environment settings
   "terminal.integrated.cwd": "${workspaceFolder}/backend",
   "terminal.integrated.env.osx": {
@@ -47,9 +54,9 @@
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.codeActionsOnSave": {
-      "source.fixAll.ruff": true,
-      "source.organizeImports.ruff": true,
-      "source.fixAll": true
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit",
+      "source.fixAll": "explicit"
     }
   },
 
@@ -134,7 +141,9 @@
     "**/dist",
     "app/**",
     "**/tests/**",
-    "**/test_*.py"
+    "**/test_*.py",
+    "**/migrations/**",
+    "**/alembic/**"
   ],
   "python.analysis.diagnosticMode": "workspace",
   "python.analysis.importFormat": "absolute",
@@ -143,5 +152,8 @@
   "python.analysis.useLibraryCodeForTypes": true,
 
   // Disable Pixi warnings
-  "pixi.enabled": false
+  "pixi.enabled": false,
+  "files.associations": {
+    "*.yaml": "home-assistant"
+  }
 }

@@ -26,7 +26,6 @@ Built with Next.js 14 and FastAPi.
 - Track liked recipes
 - Modern, responsive UI
 - Type-safe development
-- Fast, server-side rendered pages
 
 ## Recipe Management
 

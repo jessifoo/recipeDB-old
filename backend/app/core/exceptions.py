@@ -1,257 +1,361 @@
-"""Core exception handling for the application."""
+"""Core exception handling for the application.
+
+This module provides a comprehensive exception hierarchy for handling all types
+of errors in the application. It includes base classes for different error
+categories and utility functions for error handling.
+
+Example:
+    .. code-block:: python
+
+        from app.core.exceptions import BusinessError
+        from app.core.error_messages import ErrorMessages
+        from app.core.error_codes import ErrorCode
+
+        try:
+            # Some business logic
+            if invalid_state:
+                raise BusinessError(
+                    message_template=ErrorMessages.INVALID_STATE,
+                    code=ErrorCode.INVALID_STATE,
+                    details={"current": state, "allowed": valid_states}
+                )
+        except BusinessError as err:
+            # Handle business rule violation
+            logger.error(f"Business rule violated: {err.context.message}")
+
+Note:
+    All exceptions in this module inherit from DomainError, which provides
+    a consistent interface for error handling and logging.
+"""
 
 from __future__ import annotations
 
-from enum import IntEnum
-from http import HTTPStatus
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, ClassVar
 
-from fastapi import HTTPException, status
+from fastapi import status
 
-
-class ErrorCode(IntEnum):
-    """Application error codes."""
-
-    # Generic errors (1000-1999)
-    UNKNOWN_ERROR = 1000
-    VALIDATION_ERROR = 1001
-    DATABASE_ERROR = 1002
-    NOT_FOUND = 1003
-    ALREADY_EXISTS = 1005
-    INVALID_STATE = 1006
-
-    # Authentication/Authorization errors (2000-2999)
-    UNAUTHORIZED = 2000
-    FORBIDDEN = 2001
-    INVALID_CREDENTIALS = 2002
-    TOKEN_EXPIRED = 2003
-    INVALID_TOKEN = 2004
-
-    # External service errors (3000-3999)
-    EXTERNAL_SERVICE_ERROR = 3000
-    EXTERNAL_SERVICE_TIMEOUT = 3001
-    EXTERNAL_SERVICE_UNAVAILABLE = 3002
-    RATE_LIMIT_EXCEEDED = 3003
-    INVALID_RESPONSE = 3004
-
-    # Recipe specific errors (4000-4999)
-    RECIPE_NOT_FOUND = 4000
-    RECIPE_VALIDATION_ERROR = 4001
-    RECIPE_ALREADY_EXISTS = 4002
-    RECIPE_PROVIDER_ERROR = 4003
-    RECIPE_FILTER_ERROR = 4004
+from app.core.error_codes import ErrorCode
+from app.core.error_messages import ErrorMessageTemplate, Language
 
 
-class AppErrorDetail:
-    """Error detail structure."""
+@dataclass
+class ErrorContext:
+    """Structured context for errors.
 
-    def __init__(
-        self: AppErrorDetail,
-        code: ErrorCode,
-        message: str,
-        status_code: int = HTTPStatus.INTERNAL_SERVER_ERROR,
-        details: dict[str, Any] | None = None,
-    ) -> None:
-        """Initialize error detail.
+    This class provides a standardized way to capture error context including
+    the error code, message, and additional details for debugging.
 
-        Args:
-            code: Application error code
-            message: Error message
-            status_code: HTTP status code
-            details: Additional error details
-        """
-        self.code = code
-        self.message = message
-        self.status_code = status_code
-        self.details = details or {}
+    Attributes:
+        code: Error code identifying the type of error
+        message: Human-readable error message
+        details: Additional context about the error
+        original_error: Original exception that caused this error
+        debug_info: Additional debugging information
+    """
 
-    def to_dict(self: AppErrorDetail) -> dict[str, Any]:
-        """Convert to dictionary representation.
-
-        Returns:
-            Dictionary with error details
-        """
-        return {"code": self.code, "message": self.message, "status_code": self.status_code, "details": self.details}
+    code: ErrorCode
+    message: str
+    details: dict[str, Any]
+    original_error: Exception | None = None
+    debug_info: dict[str, Any] | None = None
 
 
-class AppHTTPException(HTTPException):
-    """Base HTTP exception for application errors."""
+class DomainError(Exception):
+    """Base exception for all domain errors.
+
+    This is the root of our exception hierarchy. All other exceptions
+    should inherit from this class.
+
+    Attributes:
+        context: Error context containing code, message, and details
+        status_code: HTTP status code to use when converting to response
+    """
+
+    status_code: ClassVar[int] = status.HTTP_500_INTERNAL_SERVER_ERROR
 
     def __init__(
         self,
-        message: str,
-        status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
-        headers: dict[str, str] | None = None,
+        message_template: ErrorMessageTemplate,
+        code: ErrorCode,
         details: dict[str, Any] | None = None,
+        original_error: Exception | None = None,
+        debug_info: dict[str, Any] | None = None,
+        lang: Language = Language.EN,
+        **kwargs: Any,
     ) -> None:
-        """Initialize the exception.
+        """Initialize domain error.
 
         Args:
-            message: Error message
-            status_code: HTTP status code
-            headers: Optional response headers
+            message_template: Template for error message
+            code: Error code
             details: Additional error details
+            original_error: Original exception
+            debug_info: Debug information
+            lang: Message language
+            **kwargs: Additional format parameters for message
         """
-        super().__init__(
-            status_code=status_code, detail={"message": message, "details": details or {}}, headers=headers
+        self.context = ErrorContext(
+            code=code,
+            message=message_template.get_message(lang, **kwargs),
+            details=details or {},
+            original_error=original_error,
+            debug_info=debug_info,
         )
+        super().__init__(self.context.message)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert error to dict for response.
+
+        Returns:
+            Dictionary representation of error
+        """
+        return {
+            "code": self.context.code,
+            "message": self.context.message,
+            "details": self.context.details,
+            "error_type": self.__class__.__name__,
+        }
 
 
-class ValidationError(AppHTTPException):
-    """Validation error."""
+class ConfigurationError(DomainError):
+    """Configuration-related errors.
+
+    Raised when there are issues with application configuration.
+    """
+
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+
+
+class AuthenticationError(DomainError):
+    """Authentication-related errors.
+
+    Raised when there are issues with user authentication.
+    """
+
+    status_code = status.HTTP_401_UNAUTHORIZED
+
+
+class AuthorizationError(DomainError):
+    """Authorization-related errors.
+
+    Raised when user lacks permission for an operation.
+    """
+
+    status_code = status.HTTP_403_FORBIDDEN
+
+
+class ResourceError(DomainError):
+    """Base for resource-related errors.
+
+    Provides common functionality for handling resource errors.
+    """
 
     def __init__(
-        self, message: str, details: dict[str, Any] | None = None, headers: dict[str, str] | None = None
+        self,
+        resource_type: str,
+        identifier: Any,
+        message_template: ErrorMessageTemplate,
+        code: ErrorCode,
+        **kwargs: Any,
     ) -> None:
-        """Initialize validation error.
+        """Initialize resource error.
 
         Args:
-            message: Error message
-            details: Validation error details
-            headers: Optional response headers
+            resource_type: Type of resource (e.g., "Recipe", "Allergen")
+            identifier: Resource identifier
+            message_template: Template for error message
+            code: Error code
+            **kwargs: Additional parameters
         """
-        super().__init__(
-            message=message, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, headers=headers, details=details
-        )
+        details = {"resource_type": resource_type, "identifier": identifier, **kwargs.get("details", {})}
+        super().__init__(message_template=message_template, code=code, details=details, **kwargs)
 
 
-class NotFoundError(AppHTTPException):
-    """Resource not found error."""
+class ResourceNotFoundError(ResourceError):
+    """Resource does not exist."""
 
-    def __init__(
-        self, message: str, details: dict[str, Any] | None = None, headers: dict[str, str] | None = None
-    ) -> None:
+    status_code = status.HTTP_404_NOT_FOUND
+
+    def __init__(self, resource_type: str, identifier: Any, **kwargs: Any) -> None:
         """Initialize not found error.
 
         Args:
-            message: Error message
-            details: Additional error details
-            headers: Optional response headers
+            resource_type: Type of resource
+            identifier: Resource identifier
+            **kwargs: Additional parameters
         """
-        super().__init__(message=message, status_code=status.HTTP_404_NOT_FOUND, headers=headers, details=details)
+        from app.core.error_messages import ErrorMessages
 
-
-class DatabaseError(AppHTTPException):
-    """Database error."""
-
-    def __init__(
-        self, message: str, details: dict[str, Any] | None = None, headers: dict[str, str] | None = None
-    ) -> None:
-        """Initialize database error.
-
-        Args:
-            message: Error message
-            details: Additional error details
-            headers: Optional response headers
-        """
         super().__init__(
-            message=message, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, headers=headers, details=details
+            resource_type=resource_type,
+            identifier=identifier,
+            message_template=ErrorMessages.RESOURCE_NOT_FOUND,
+            code=ErrorCode.NOT_FOUND,
+            **kwargs,
         )
 
 
-class ExternalServiceError(AppHTTPException):
+class ResourceExistsError(ResourceError):
+    """Resource already exists."""
+
+    status_code = status.HTTP_409_CONFLICT
+
+    def __init__(self, resource_type: str, identifier: Any, **kwargs: Any) -> None:
+        """Initialize exists error.
+
+        Args:
+            resource_type: Type of resource
+            identifier: Resource identifier
+            **kwargs: Additional parameters
+        """
+        from app.core.error_messages import ErrorMessages
+
+        super().__init__(
+            resource_type=resource_type,
+            identifier=identifier,
+            message_template=ErrorMessages.RESOURCE_EXISTS,
+            code=ErrorCode.ALREADY_EXISTS,
+            **kwargs,
+        )
+
+
+class ResourceInUseError(ResourceError):
+    """Resource is in use and cannot be modified/deleted."""
+
+    status_code = status.HTTP_409_CONFLICT
+
+    def __init__(self, resource_type: str, identifier: Any, **kwargs: Any) -> None:
+        """Initialize in use error.
+
+        Args:
+            resource_type: Type of resource
+            identifier: Resource identifier
+            **kwargs: Additional parameters
+        """
+        from app.core.error_messages import ErrorMessages
+
+        super().__init__(
+            resource_type=resource_type,
+            identifier=identifier,
+            message_template=ErrorMessages.RESOURCE_IN_USE,
+            code=ErrorCode.IN_USE,
+            **kwargs,
+        )
+
+
+class DatabaseError(DomainError):
+    """Database operation failed."""
+
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+
+    @classmethod
+    def from_sqlalchemy(cls, error: Exception, operation: str | None = None, **kwargs: Any) -> DatabaseError:
+        """Create from SQLAlchemy error.
+
+        Args:
+            error: Original SQLAlchemy error
+            operation: Database operation that failed
+            **kwargs: Additional parameters
+
+        Returns:
+            DatabaseError instance
+        """
+        from app.core.error_messages import ErrorMessages
+
+        details = {"operation": operation, "error_type": error.__class__.__name__, **kwargs.get("details", {})}
+
+        # Add debug info in development
+        debug_info = {"sql": getattr(error, "statement", None), "params": getattr(error, "params", None)}
+
+        return cls(
+            message_template=ErrorMessages.DATABASE_ERROR,
+            code=ErrorCode.DATABASE_ERROR,
+            details=details,
+            original_error=error,
+            debug_info=debug_info,
+            **kwargs,
+        )
+
+
+class ValidationError(DomainError):
+    """Validation error."""
+
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+class BusinessError(DomainError):
+    """Business rule violation."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+
+    def __init__(
+        self, message_template: ErrorMessageTemplate, code: ErrorCode = ErrorCode.BUSINESS_RULE_VIOLATION, **kwargs: Any
+    ) -> None:
+        """Initialize business error.
+
+        Args:
+            message_template: Template for error message
+            code: Error code
+            **kwargs: Additional parameters
+        """
+        super().__init__(message_template=message_template, code=code, **kwargs)
+
+
+class ExternalServiceError(DomainError):
     """External service error."""
 
-    def __init__(
-        self,
-        message: str,
-        status_code: int = status.HTTP_502_BAD_GATEWAY,
-        details: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> None:
-        """Initialize external service error.
-
-        Args:
-            message: Error message
-            status_code: HTTP status code from external service
-            details: Additional error details
-            headers: Optional response headers
-        """
-        super().__init__(message=message, status_code=status_code, headers=headers, details=details)
+    status_code = status.HTTP_502_BAD_GATEWAY
 
 
-class ExternalServiceTimeoutError(ExternalServiceError):
-    """External service timeout error."""
+class ServiceUnavailableError(ExternalServiceError):
+    """Service is unavailable."""
 
-    def __init__(
-        self, message: str, details: dict[str, Any] | None = None, headers: dict[str, str] | None = None
-    ) -> None:
-        """Initialize external service timeout error.
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
-        Args:
-            message: Error message
-            details: Additional error details
-            headers: Optional response headers
-        """
-        super().__init__(message=message, status_code=status.HTTP_504_GATEWAY_TIMEOUT, headers=headers, details=details)
+
+class ServiceTimeoutError(ExternalServiceError):
+    """Service request timed out."""
+
+    status_code = status.HTTP_504_GATEWAY_TIMEOUT
 
 
 class RateLimitError(ExternalServiceError):
-    """Rate limit exceeded error."""
+    """Rate limit exceeded."""
 
-    def __init__(
-        self, message: str, details: dict[str, Any] | None = None, headers: dict[str, str] | None = None
-    ) -> None:
-        """Initialize rate limit error.
-
-        Args:
-            message: Error message
-            details: Additional error details
-            headers: Optional response headers
-        """
-        super().__init__(
-            message=message, status_code=status.HTTP_429_TOO_MANY_REQUESTS, headers=headers, details=details
-        )
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
 
 
-class RecipeError(AppHTTPException):
-    """Base recipe error."""
+def get_status_code(error: DomainError) -> int:
+    """Map error codes to HTTP status codes.
 
-    def __init__(
-        self,
-        message: str,
-        status_code: int = status.HTTP_400_BAD_REQUEST,
-        details: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> None:
-        """Initialize recipe error.
+    Args:
+        error: Domain error instance
 
-        Args:
-            message: Error message
-            status_code: HTTP status code
-            details: Additional error details
-            headers: Optional response headers
-        """
-        super().__init__(message=message, status_code=status_code, headers=headers, details=details)
+    Returns:
+        HTTP status code
+    """
+    return error.status_code
 
 
-class RecipeNotFoundError(NotFoundError):
-    """Recipe not found error."""
+__version__ = "1.0.0"
 
-
-class RecipeFilterError(RecipeError):
-    """Recipe filter error (e.g., allergens)."""
-
-    def __init__(
-        self,
-        message: str = "Recipe does not meet filter criteria",
-        details: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> None:
-        """Initialize filter error.
-
-        Args:
-            message: Error message
-            details: Additional error details
-            headers: Optional response headers
-        """
-        super().__init__(
-            message=message,
-            status_code=status.HTTP_404_NOT_FOUND,  # Use 404 when recipe is filtered out
-            headers=headers,
-            details=details,
-        )
-
-
-class RecipeProviderError(ExternalServiceError):
-    """Recipe provider error."""
+__all__ = [
+    "AuthenticationError",
+    "AuthorizationError",
+    "BusinessError",
+    "ConfigurationError",
+    "DatabaseError",
+    "DomainError",
+    "ErrorContext",
+    "ExternalServiceError",
+    "RateLimitError",
+    "ResourceError",
+    "ResourceExistsError",
+    "ResourceInUseError",
+    "ResourceNotFoundError",
+    "ServiceTimeoutError",
+    "ServiceUnavailableError",
+    "ValidationError",
+    "get_status_code",
+]
