@@ -152,5 +152,8 @@
   "python.analysis.useLibraryCodeForTypes": true,
 
   // Disable Pixi warnings
-  "pixi.enabled": false
+  "pixi.enabled": false,
+  "files.associations": {
+    "*.yaml": "home-assistant"
+  }
 }

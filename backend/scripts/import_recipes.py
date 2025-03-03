@@ -105,8 +105,9 @@ def parse_recipe_data(row: dict[str, str]) -> dict[str, Any] | None:
     except (ValueError, KeyError) as e:
         logger.warning(f"Error parsing recipe: {e}")
 
-
         return None
+
+
 async def import_recipes(csv_path: str) -> None:
     """Import recipes from CSV file."""
     async with get_db() as db:

@@ -20,8 +20,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger: Final[logging.Logger] = logging.getLogger(__name__)
 
 # Import runtime dependencies
-from dotenv import load_dotenv
 import sentry_sdk
+from dotenv import load_dotenv
 from sentry_sdk.integrations.base import Integration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
