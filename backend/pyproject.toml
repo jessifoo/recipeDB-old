@@ -27,14 +27,14 @@ redis = "^4.6.0"
 uvicorn = "^0.27.1"
 email-validator = "^2.1.0"
 httpx = "^0.26.0"
-python-multipart = "^0.0.6"
+python-multipart = "^0.0.18"
 pyjwt = "^2.8.0"
 psycopg2-binary = "^2.9.9"
-aiohttp = "^3.9.1"
+aiohttp = "^3.12.14"
 fastapi-cache2 = {extras = ["redis"], version = "^0.2.2"}
 pydantic = {extras = ["email"], version = "^2.6.1"}
 pydantic-settings = "^2.1.0"
-python-jose = {extras = ["cryptography"], version = "^3.3.0"}
+python-jose = {extras = ["cryptography"], version = "^3.4.0"}
 passlib = {extras = ["bcrypt"], version = "^1.7.4"}
 cython = "^3.0.11"
 databases = "^0.9.0"
